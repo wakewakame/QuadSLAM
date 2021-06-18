@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # プロジェクトの作成
-project(opencv_template_project)
+project(QuadSLAM)
 
 # OpenCVのパス
 set(OPENCV_DIR "${PROJECT_SOURCE_DIR}/3rdparty/opencv")
@@ -48,17 +48,17 @@ add_subdirectory("${OPENCV_DIR}")
 file(GLOB_RECURSE ALL_CPP_FILES "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
 # メインプログラムの作成
-add_executable(opencv_template "${PROJECT_SOURCE_DIR}/main.cpp" "${ALL_CPP_FILES}")
-target_include_directories(opencv_template PUBLIC "${PROJECT_SOURCE_DIR}/include")
+add_executable(quadslam "${PROJECT_SOURCE_DIR}/main.cpp" "${ALL_CPP_FILES}")
+target_include_directories(quadslam PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
 # OpenCVをライブラリとして追加
-target_link_libraries(opencv_template "${OPENCV_BUILD_LIST_TARGET}")
-target_include_directories(opencv_template PUBLIC
+target_link_libraries(quadslam "${OPENCV_BUILD_LIST_TARGET}")
+target_include_directories(quadslam PUBLIC
 	"${CMAKE_BINARY_DIR}"
 	"${OPENCV_DIR}/include"
 	"${OPENCV_BUILD_LIST_INCLUDE}"
 )
 
 # zlibをライブラリとして追加
-target_link_libraries(opencv_template "${ZLIB_LIBRARY}")
-target_include_directories(opencv_template PUBLIC "${ZLIB_INCLUDE_DIR}")
+target_link_libraries(quadslam "${ZLIB_LIBRARY}")
+target_include_directories(quadslam PUBLIC "${ZLIB_INCLUDE_DIR}")
