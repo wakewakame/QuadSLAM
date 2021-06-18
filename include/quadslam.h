@@ -5,6 +5,7 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/videoio.hpp"
 #include "zlib.h"
+#include "nlohmann/json.hpp"
 
 namespace qs {
 	struct FrameInfo {
@@ -32,8 +33,9 @@ namespace qs {
 
 			std::ifstream infoJsonFs(infoJsonPath, std::ios_base::in | std::ios_base::binary);
 			if (infoJsonFs.is_open()) {
-				std::string infoJson((std::istreambuf_iterator<char>(infoJsonFs)), std::istreambuf_iterator<char>());
-				std::cout << infoJson << std::endl;
+				std::string infoJsonString((std::istreambuf_iterator<char>(infoJsonFs)), std::istreambuf_iterator<char>());
+				nlohmann::json infoJson = nlohmann::json::parse(infoJsonString);
+				std::cout << infoJson.dump(4) << std::endl;
 				infoJsonFs.close();
 			}
 		}
