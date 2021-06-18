@@ -19,6 +19,7 @@ string(REGEX REPLACE ";" "," OPENCV_BUILD_LIST_STRING "${OPENCV_BUILD_LIST}")
 string(REGEX REPLACE "([^;]+)" "opencv_\\1" OPENCV_BUILD_LIST_TARGET "${OPENCV_BUILD_LIST}")
 string(REGEX REPLACE "([^;]+)" "${OPENCV_DIR}/modules/\\1/include" OPENCV_BUILD_LIST_INCLUDE "${OPENCV_BUILD_LIST}")
 
+
 # C++17を使用する
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,6 +31,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "generate compile_commands.json"
 
 # OpenCVの中で必要なモジュールのみビルドするように設定
 set(BUILD_LIST "${OPENCV_BUILD_LIST_STRING}" CACHE STRING "OpenCV Build List" FORCE)
+
+# 本プログラムではzlibを使用するが、これはOpenCVが既に使用している。
+# そのため、自前でzlibを追加するとOpenCVの使用するzlibとターゲット名の衝突を起こす。
+# これを回避するべく、ここではOpenCVに含まれるzlibを利用することにした。
+
+# OpenCVでzlibの自前ビルドを強制する
+# zlibのターゲット名はZLIB_LIBRARY変数にCACHEとして格納される
+# zlibのインクルードディレクトリはZLIB_INCLUDE_DIR変数にCACHEとして格納される
+set(BUILD_ZLIB ON CACHE INTERNAL "" FORCE)
 
 # OpenCVのCMakeLists.txtを読み込む
 add_subdirectory("${OPENCV_DIR}")
@@ -48,3 +58,7 @@ target_include_directories(opencv_template PUBLIC
 	"${OPENCV_DIR}/include"
 	"${OPENCV_BUILD_LIST_INCLUDE}"
 )
+
+# zlibをライブラリとして追加
+target_link_libraries(opencv_template "${ZLIB_LIBRARY}")
+target_include_directories(opencv_template PUBLIC "${ZLIB_INCLUDE_DIR}")
