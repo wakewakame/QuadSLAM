@@ -13,7 +13,8 @@ int main(int argc, char* argv[]) {
 	}
 
 	std::string recDirPath = argv[1];
-	qs::QuadSLAM qs(recDirPath);
+	qs::QuadSLAM qs;
+	qs.open(recDirPath);
 
 	return 0;
 }
