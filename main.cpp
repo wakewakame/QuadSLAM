@@ -14,7 +14,17 @@ int main(int argc, char* argv[]) {
 
 	std::string recDirPath = argv[1];
 	qs::QuadSLAM qs;
-	qs.open(recDirPath);
+	auto result = qs.open(recDirPath);
+	if (result.is_err()) { std::cout << result.unwrap_err() << std::endl; return 1; }
+
+	while(true) {
+		qs.next();
+		if (qs.camera.empty()) break;
+		cv::imshow("camera", qs.camera);
+		cv::imshow("depth", qs.depth);
+		cv::imshow("confidence", qs.confidence);
+		if ('q' == cv::waitKey(1)) break;
+	}
 
 	return 0;
 }
