@@ -1,3 +1,48 @@
+/*
+
+コンセプト
+
+template<typename T> struct Ok{ T t; };
+template<typename E> struct Err{ E e; std::string description; };
+
+template<typename T, typename E>
+struct Result {
+	Result(Ok<T> ok) : val(ok) {}
+	Result(Err<E> err) : val(err) {}
+	std::various<Ok<T>, Err<E>> val;
+};
+
+class QuadLoader {
+	enum class Error {
+		AlreadyClosed
+		FailedToOpenFile,
+		FailedToReadFrame,
+		EOF,
+	};
+	struct IMU {};
+	struct GPS {};
+	struct Frame {
+		cv::Mat camera;
+		std::option<cv::Mat> depth;
+		std::option<cv::Mat> confidence;
+		std::option<IMU> imu;
+		std::option<GPS> gps;
+	};
+
+	QuadLoader();
+	virtual ~QuadLoader();
+	auto open(std::string recDirPath) -> Result<void, Error>;
+	auto close() -> Result<void, Error>;
+	auto isOpened() -> bool;
+	auto next() -> Result<void, Error>;
+	auto depthExists() -> bool;
+	auto confidenceExists() -> bool;
+	auto imuExists() -> bool;
+	auto gpsExists() -> bool;
+};
+
+*/
+
 #pragma once
 #include <iostream>
 #include <fstream>
