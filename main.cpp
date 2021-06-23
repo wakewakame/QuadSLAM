@@ -13,16 +13,17 @@ int main(int argc, char* argv[]) {
 	}
 
 	std::string recDirPath = argv[1];
-	qs::QuadSLAM qs;
-	auto result = qs.open(recDirPath);
-	if (result.is_err()) { std::cout << result.unwrap_err() << std::endl; return 1; }
+	qs::QuadLoader ql;
+	ql.open(recDirPath);
+	if (!ql.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
 
 	while(true) {
-		qs.next();
-		if (qs.camera.empty()) break;
-		cv::imshow("camera", qs.camera);
-		cv::imshow("depth", qs.depth);
-		cv::imshow("confidence", qs.confidence);
+		auto frame = ql.next();
+		if (!frame.has_value()) break;
+		qs::QuadLoader::Frame& frame_ = frame.value();
+		cv::imshow("camera", frame_.camera);
+		if (frame_.depth.has_value()) cv::imshow("depth", frame_.depth.value());
+		if (frame_.confidence.has_value()) cv::imshow("confidence", frame_.confidence.value());
 		if ('q' == cv::waitKey(1)) break;
 	}
 
