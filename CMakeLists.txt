@@ -16,6 +16,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "generate compile_commands.json"
 # 依存ライブラリのパス
 set(OPENCV_DIR "${PROJECT_SOURCE_DIR}/3rdparty/opencv")
 set(JSON_DIR "${PROJECT_SOURCE_DIR}/3rdparty/json")
+set(CINDER_DIR "${PROJECT_SOURCE_DIR}/3rdparty/cinder")
 
 # OpenCVで使用するModuleの指定
 set(OPENCV_BUILD_LIST
@@ -47,6 +48,8 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 # 依存ライブラリのCMakeLists.txtを読み込む
 add_subdirectory("${OPENCV_DIR}")
 add_subdirectory("${JSON_DIR}")
+add_subdirectory("${CINDER_DIR}")
+include( "${CINDER_DIR}/proj/cmake/modules/cinderMakeApp.cmake" )
 
 # 全てのソースファイルを再帰的に検索する
 file(GLOB_RECURSE ALL_CPP_FILES "${PROJECT_SOURCE_DIR}/src/*.cpp")
@@ -57,6 +60,25 @@ function(qs_make_app)
 	set(oneValueArgs APP_NAME SOURCE)
 	cmake_parse_arguments(ARG "" "${oneValueArgs}" "" ${ARGN})
 
+	# ターゲットの作成
+	ci_make_app(
+		CINDER_PATH "${CINDER_DIR}"
+		APP_NAME    "${ARG_APP_NAME}"
+		SOURCES     "${ARG_SOURCE}" "${ALL_CPP_FILES}"
+		INCLUDES
+			"${PROJECT_SOURCE_DIR}/include"
+			"${CMAKE_BINARY_DIR}"
+			"${OPENCV_DIR}/include"
+			"${OPENCV_BUILD_LIST_INCLUDE}"
+			"${ZLIB_INCLUDE_DIR}"
+		LIBRARIES
+			"${OPENCV_BUILD_LIST_TARGET}"
+			"${ZLIB_LIBRARY}"
+			"nlohmann_json::nlohmann_json"
+	)
+
+	# 以下はCinderを使わない場合のターゲット作成方法
+	#[[
 	# ターゲットの作成
 	add_executable("${ARG_APP_NAME}" "${ARG_SOURCE}" "${ALL_CPP_FILES}")
 	target_include_directories("${ARG_APP_NAME}" PRIVATE "${PROJECT_SOURCE_DIR}/include")
@@ -75,6 +97,7 @@ function(qs_make_app)
 
 	# nlohmann_jsonをライブラリとして追加
 	target_link_libraries("${ARG_APP_NAME}" PRIVATE nlohmann_json::nlohmann_json)
+	]]
 endfunction()
 
 # メインプログラムの作成
