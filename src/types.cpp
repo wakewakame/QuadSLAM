@@ -16,26 +16,34 @@ cv::Mat AR::cvIntrinsics()       { return cv::Mat(3, 3, CV_32F, intrinsics      
 cv::Mat AR::cvProjectionMatrix() { return cv::Mat(4, 4, CV_32F, projectionMatrix).clone(); }
 cv::Mat AR::cvViewMatrix()       { return cv::Mat(4, 4, CV_32F, viewMatrix      ).clone(); }
 
-// Frame
-Frame::Frame() {}
-Frame::~Frame() {}
-Frame::Frame(const Frame& frame) :
-	frameNumber(frame.frameNumber), timestamp(frame.timestamp),
-	camera(frame.camera.clone()), depth(frame.depth.clone()), confidence(frame.confidence.clone()),
-	imu(frame.imu), gps(frame.gps), ar(frame.ar) {}
-Frame::Frame(Frame&& frame) :
-	frameNumber(frame.frameNumber), timestamp(frame.timestamp),
-	camera(std::move(frame.camera)), depth(std::move(frame.depth)), confidence(std::move(frame.confidence)),
-	imu(frame.imu), gps(frame.gps), ar(frame.ar) {}
-Frame& Frame::operator=(const Frame& frame) {
-	frameNumber = frame.frameNumber; timestamp = frame.timestamp;
-	camera = frame.camera.clone(); depth = frame.depth.clone(); confidence = frame.confidence.clone();
-	imu = frame.imu; gps = frame.gps; ar = frame.ar;
+// Camera
+Camera::Camera() {}
+Camera::~Camera() {}
+Camera::Camera(const Camera& frame) :
+	timestamp(frame.timestamp),
+	color(frame.color.clone()),
+	depth(frame.depth.clone()),
+	confidence(frame.confidence.clone()),
+	ar(frame.ar) {}
+Camera::Camera(Camera&& frame) :
+	timestamp(frame.timestamp),
+	color(std::move(frame.color)),
+	depth(std::move(frame.depth)),
+	confidence(std::move(frame.confidence)),
+	ar(frame.ar) {}
+Camera& Camera::operator=(const Camera& frame) {
+	timestamp = frame.timestamp;
+	color = frame.color.clone();
+	depth = frame.depth.clone();
+	confidence = frame.confidence.clone();
+	ar = frame.ar;
 	return *this;
 }
-Frame& Frame::operator=(Frame&& frame) {
-	frameNumber = frame.frameNumber; timestamp = frame.timestamp;
-	camera = std::move(frame.camera); depth = std::move(frame.depth); confidence = std::move(frame.confidence);
-	imu = frame.imu; gps = frame.gps; ar = frame.ar;
+Camera& Camera::operator=(Camera&& frame) {
+	timestamp = frame.timestamp;
+	color = std::move(frame.color);
+	depth = std::move(frame.depth);
+	confidence = std::move(frame.confidence);
+	ar = frame.ar;
 	return *this;
 }

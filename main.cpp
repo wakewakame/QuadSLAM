@@ -1,4 +1,4 @@
-#include "quad_loader.h"
+#include "loader/camera_loader.h"
 
 int main(int argc, char* argv[]) {
 	if (2 != argc) {
@@ -13,32 +13,32 @@ int main(int argc, char* argv[]) {
 	}
 
 	std::string recDirPath = argv[1];
-	qs::QuadLoader ql;
-	ql.open(recDirPath);
-	if (!ql.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
+	qs::CameraLoader cl;
+	cl.open(recDirPath);
+	if (!cl.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
 
 	while(true) {
-		auto frame = ql.next();
-		if (!frame.has_value()) break;
-		qs::Frame& frame_ = frame.value();
+		auto camera = cl.next();
+		if (!camera.has_value()) break;
+		qs::Camera& camera_ = camera.value();
 
-		frame_.depth *= 0.1;
-		frame_.confidence *= 255 / 2;
+		camera_.depth *= 0.1;
+		camera_.confidence *= 255 / 2;
 
-		auto resolution = frame_.depth.size() * 2;
-		cv::resize(frame_.camera    , frame_.camera    , resolution);
-		cv::resize(frame_.depth     , frame_.depth     , resolution);
-		cv::resize(frame_.confidence, frame_.confidence, resolution);
+		auto resolution = camera_.depth.size() * 2;
+		cv::resize(camera_.color     , camera_.color     , resolution);
+		cv::resize(camera_.depth     , camera_.depth     , resolution);
+		cv::resize(camera_.confidence, camera_.confidence, resolution);
 
-		cv::imshow("camera", frame_.camera);
-		cv::imshow("depth", frame_.depth);
-		cv::imshow("confidence", frame_.confidence);
+		cv::imshow("camera"    , camera_.color     );
+		cv::imshow("depth"     , camera_.depth     );
+		cv::imshow("confidence", camera_.confidence);
 
 		std::cout
 			<< "================================\n"
-			<< frame_.ar.cvIntrinsics()       << "\n"
-			<< frame_.ar.cvProjectionMatrix() << "\n"
-			<< frame_.ar.cvViewMatrix()       << std::endl;
+			<< camera_.ar.cvIntrinsics()       << "\n"
+			<< camera_.ar.cvProjectionMatrix() << "\n"
+			<< camera_.ar.cvViewMatrix()       << std::endl;
 
 		if ('q' == cv::waitKey(1)) break;
 	}

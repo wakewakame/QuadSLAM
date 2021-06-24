@@ -4,7 +4,7 @@
 
 namespace qs {
 	struct IMU {
-		double timestampe = 0.0;
+		double timestampe = .0;
 		double gravity[3] = { .0, .0, .0 };
 		double userAccleration[3] = { .0, .0, .0 };
 		double attitude[3] = { .0, .0, .0 };
@@ -32,21 +32,25 @@ namespace qs {
 		cv::Mat cvViewMatrix();
 	};
 
-	struct Frame {
-		uint64_t frameNumber = 0;
-		double timestamp = 0.0;
-		cv::Mat camera;
+	struct Camera {
+		double timestamp = .0;
+		cv::Mat color;
 		cv::Mat depth;
 		cv::Mat confidence;
-		IMU imu;
-		GPS gps;
 		AR ar;
 
-		Frame();
-		virtual ~Frame();
-		Frame(const Frame& frame);
-		Frame(Frame&& frame);
-		Frame& operator=(const Frame& frame);
-		Frame& operator=(Frame&& frame);
+		Camera();
+		virtual ~Camera();
+		Camera(const Camera& frame);
+		Camera(Camera&& frame);
+		Camera& operator=(const Camera& frame);
+		Camera& operator=(Camera&& frame);
+	};
+
+	struct QuadFrame {
+		double timestamp = .0;
+		Camera camera;
+		IMU imu;
+		GPS gps;
 	};
 }

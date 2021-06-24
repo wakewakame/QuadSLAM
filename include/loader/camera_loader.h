@@ -12,19 +12,18 @@
 #include "types.h"
 
 namespace qs {
-	struct QuadLoader {
-		QuadLoader();
-		virtual ~QuadLoader();
+	struct CameraLoader {
+		CameraLoader();
+		virtual ~CameraLoader();
 		void open(std::string recDirPath);
 		void close();
 		bool isOpened();
-		std::optional<Frame> next();
+		std::optional<Camera> next();
 
 	private:
-		std::optional<Frame> frame;
-		cv::VideoCapture cameraCap;
+		std::optional<Camera> camera;
+		cv::VideoCapture colorCap;
 		std::ifstream arFs;
 		std::ifstream depthFs, confidenceFs;
-		std::ifstream imuFs, gpsFs;
 	};
 }
