@@ -10,11 +10,11 @@ namespace qs {
 		virtual ~GPSLoader();
 		void open(std::string recDirPath);
 		void close();
-		bool isOpened();
+		bool isOpened() const;
 		std::optional<GPS> next();
 
 	private:
-		std::optional<GPS> gps;
+		bool isOpened_ = false;
 		std::ifstream gpsFs;
 	};
 }

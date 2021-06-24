@@ -2,7 +2,7 @@
 
 using namespace qs;
 
-IMULoader::IMULoader() : imu(std::nullopt) {}
+IMULoader::IMULoader() {}
 
 IMULoader::~IMULoader() {}
 
@@ -17,34 +17,34 @@ void IMULoader::open(std::string recDirPath) {
 	imuFs.open(imuPath, std::ios_base::in | std::ios_base::binary);
 	if (!imuFs.is_open()) { close(); return; }
 
-	imu = IMU();
+	isOpened_ = true;
 
 	return;
 }
 
 void IMULoader::close() {
 	if (imuFs.is_open()) imuFs.close();
-	imu = std::nullopt;
+	isOpened_ = false;
 }
 
-bool IMULoader::isOpened() {
-	return imu.has_value();
+bool IMULoader::isOpened() const {
+	return isOpened_;
 }
 
 std::optional<IMU> IMULoader::next() {
 	// ファイルが開かれていなければ処理を終了
-	if (!imu.has_value()) { return std::nullopt; }
-	IMU& imu_ = imu.value();
+	if (!isOpened()) { return std::nullopt; }
+	IMU imu;
 
 	// IMUの値を取得
 	uint8_t imuBytes[80];
 	imuFs.read((char*)imuBytes, sizeof(imuBytes));
 	if (!imuFs.good()) { close(); return std::nullopt; }
 	size_t offset = 0, size = 0;
-	std::memcpy(&imu_.timestamp      , &imuBytes[offset], size = sizeof(imu_.timestamp      )); offset += size;
-	std::memcpy(&imu_.gravity        , &imuBytes[offset], size = sizeof(imu_.gravity        )); offset += size;
-	std::memcpy(&imu_.userAccleration, &imuBytes[offset], size = sizeof(imu_.userAccleration)); offset += size;
-	std::memcpy(&imu_.attitude       , &imuBytes[offset], size = sizeof(imu_.attitude       )); offset += size;
+	std::memcpy(&imu.timestamp      , &imuBytes[offset], size = sizeof(imu.timestamp      )); offset += size;
+	std::memcpy(&imu.gravity        , &imuBytes[offset], size = sizeof(imu.gravity        )); offset += size;
+	std::memcpy(&imu.userAccleration, &imuBytes[offset], size = sizeof(imu.userAccleration)); offset += size;
+	std::memcpy(&imu.attitude       , &imuBytes[offset], size = sizeof(imu.attitude       )); offset += size;
 
-	return imu_;
+	return imu;
 }

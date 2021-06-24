@@ -14,13 +14,17 @@ namespace qs {
 		virtual ~CameraLoader();
 		void open(std::string recDirPath);
 		void close();
-		bool isOpened();
+		bool isOpened() const;
 		std::optional<Camera> next();
 
 	private:
-		std::optional<Camera> camera;
+		bool isOpened_ = false;
 		cv::VideoCapture colorCap;
 		std::ifstream arFs;
-		std::ifstream depthFs, confidenceFs;
+		struct ZlibImage {
+			std::ifstream fs;
+			std::vector<uint8_t> src, dst;
+			int width, height;
+		} depthZlib, confidenceZlib;
 	};
 }

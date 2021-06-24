@@ -15,5 +15,8 @@ namespace qs {
 
 	private:
 		std::optional<QuadFrame> quadFrame;
+		CameraLoader cameraLoader;
+		IMULoader imuLoader;
+		GPSLoader gpsLoader;
 	};
 }

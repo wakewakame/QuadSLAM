@@ -10,11 +10,11 @@ namespace qs {
 		virtual ~IMULoader();
 		void open(std::string recDirPath);
 		void close();
-		bool isOpened();
+		bool isOpened() const;
 		std::optional<IMU> next();
 
 	private:
-		std::optional<IMU> imu;
+		bool isOpened_ = false;
 		std::ifstream imuFs;
 	};
 }

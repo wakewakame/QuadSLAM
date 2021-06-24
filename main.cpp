@@ -35,11 +35,15 @@ int main(int argc, char* argv[]) {
 		cv::imshow("depth"     , camera_.depth     );
 		cv::imshow("confidence", camera_.confidence);
 
+		/*
 		std::cout
 			<< "================================\n"
 			<< camera_.ar.cvIntrinsics()       << "\n"
 			<< camera_.ar.cvProjectionMatrix() << "\n"
 			<< camera_.ar.cvViewMatrix()       << std::endl;
+		*/
+
+		camera_.depth.release();
 
 		if ('q' == cv::waitKey(1)) break;
 	}

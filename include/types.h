@@ -39,12 +39,7 @@ namespace qs {
 		cv::Mat confidence;
 		AR ar;
 
-		Camera();
-		virtual ~Camera();
-		Camera(const Camera& frame);
-		Camera(Camera&& frame);
-		Camera& operator=(const Camera& frame);
-		Camera& operator=(Camera&& frame);
+		Camera clone() const;
 	};
 
 	struct QuadFrame {
@@ -52,5 +47,7 @@ namespace qs {
 		Camera camera;
 		IMU imu;
 		GPS gps;
+
+		QuadFrame clone() const;
 	};
 }

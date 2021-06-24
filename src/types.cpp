@@ -17,33 +17,11 @@ cv::Mat AR::cvProjectionMatrix() { return cv::Mat(4, 4, CV_32F, projectionMatrix
 cv::Mat AR::cvViewMatrix()       { return cv::Mat(4, 4, CV_32F, viewMatrix      ).clone(); }
 
 // Camera
-Camera::Camera() {}
-Camera::~Camera() {}
-Camera::Camera(const Camera& frame) :
-	timestamp(frame.timestamp),
-	color(frame.color.clone()),
-	depth(frame.depth.clone()),
-	confidence(frame.confidence.clone()),
-	ar(frame.ar) {}
-Camera::Camera(Camera&& frame) :
-	timestamp(frame.timestamp),
-	color(std::move(frame.color)),
-	depth(std::move(frame.depth)),
-	confidence(std::move(frame.confidence)),
-	ar(frame.ar) {}
-Camera& Camera::operator=(const Camera& frame) {
-	timestamp = frame.timestamp;
-	color = frame.color.clone();
-	depth = frame.depth.clone();
-	confidence = frame.confidence.clone();
-	ar = frame.ar;
-	return *this;
+Camera Camera::clone() const {
+	return Camera{timestamp, color.clone(), depth.clone(), confidence.clone(), ar};
 }
-Camera& Camera::operator=(Camera&& frame) {
-	timestamp = frame.timestamp;
-	color = std::move(frame.color);
-	depth = std::move(frame.depth);
-	confidence = std::move(frame.confidence);
-	ar = frame.ar;
-	return *this;
+
+// QuadFrame
+QuadFrame QuadFrame::clone() const {
+	return QuadFrame{timestamp, camera.clone(), imu, gps};
 }
