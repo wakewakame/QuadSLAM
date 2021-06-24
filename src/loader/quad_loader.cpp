@@ -2,7 +2,7 @@
 
 using namespace qs;
 
-QuadLoader::QuadLoader() : quadFrame(std::nullopt) {}
+QuadLoader::QuadLoader() {}
 
 QuadLoader::~QuadLoader() {}
 
@@ -22,7 +22,7 @@ void QuadLoader::open(std::string recDirPath) {
 	gpsLoader.open(recDirPath);
 	if (!gpsLoader.isOpened()) { close(); return; }
 
-	quadFrame = QuadFrame();
+	isOpened_ = true;
 
 	return;
 }
@@ -31,21 +31,26 @@ void QuadLoader::close() {
 	if (cameraLoader.isOpened()) cameraLoader.close();
 	if (imuLoader.isOpened()) imuLoader.close();
 	if (gpsLoader.isOpened()) gpsLoader.close();
-	quadFrame = std::nullopt;
+	isOpened_ = false;
 }
 
-bool QuadLoader::isOpened() {
-	return quadFrame.has_value();
+bool QuadLoader::isOpened() const {
+	return isOpened_;
 }
 
 std::optional<QuadFrame> QuadLoader::next() {
 	// ファイルが開かれていなければ処理を終了
-	if (!quadFrame.has_value()) { return std::nullopt; }
-	QuadFrame& quadFrame_ = quadFrame.value();
+	if (!isOpened()) { return std::nullopt; }
+	QuadFrame quadFrame;
 
 	// カメラ
 	std::optional<Camera> camera = cameraLoader.next();
 	if (!camera.has_value()) { close(); return std::nullopt; }
+	quadFrame.camera = camera.value();
 
-	return quadFrame_;
+	/*
+		TODO: カメラのタイムスタンプに合わせたIMUとGPSの値を計算し代入する
+	*/
+
+	return quadFrame;
 }

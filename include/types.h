@@ -33,6 +33,14 @@ namespace qs {
 	};
 
 	struct Camera {
+		/*
+			メモ
+			OpenCV 4.x より、cv::Matにムーブコンストラクタとムーブ代入演算子が実装された。
+			そのため、Cameraには暗黙的にコピーコンストラクタ、ムーブコンストラクタ、コピー代入演算子、ムーブ代入演算子が定義される。
+			また、cv::Matは内部で参照カウンタを持っており、通常のコピーではデータの参照先は同じになる。
+			そのため、深いコピーを行うときにはCamera::clone()メソッドを使用する。
+		*/
+
 		double timestamp = .0;
 		cv::Mat color;
 		cv::Mat depth;

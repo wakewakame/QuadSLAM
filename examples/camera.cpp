@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
 	while(true) {
 		auto camera = loader.next();
 		if (!camera.has_value()) break;
-		qs::Camera& camera_ = camera.value();
+		qs::Camera camera_ = camera.value();
 
 		camera_.depth *= 0.1;
 		camera_.confidence *= 255 / 2;

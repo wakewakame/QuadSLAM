@@ -1,5 +1,5 @@
 #include <iostream>
-#include "loader/camera_loader.h"
+#include "loader/quad_loader.h"
 
 int main(int argc, char* argv[]) {
 	if (2 != argc) {
@@ -14,36 +14,33 @@ int main(int argc, char* argv[]) {
 	}
 
 	std::string recDirPath = argv[1];
-	qs::CameraLoader cl;
-	cl.open(recDirPath);
-	if (!cl.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
+	qs::QuadLoader loader;
+	loader.open(recDirPath);
+	if (!loader.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
 
 	while(true) {
-		auto camera = cl.next();
-		if (!camera.has_value()) break;
-		qs::Camera& camera_ = camera.value();
+		auto quad = loader.next();
+		if (!quad.has_value()) break;
+		qs::QuadFrame& quadFrame = quad.value();
+		qs::Camera camera = quadFrame.camera;
 
-		camera_.depth *= 0.1;
-		camera_.confidence *= 255 / 2;
+		camera.depth *= 0.1;
+		camera.confidence *= 255 / 2;
 
-		auto resolution = camera_.depth.size() * 2;
-		cv::resize(camera_.color     , camera_.color     , resolution);
-		cv::resize(camera_.depth     , camera_.depth     , resolution);
-		cv::resize(camera_.confidence, camera_.confidence, resolution);
+		auto resolution = camera.depth.size() * 2;
+		cv::resize(camera.color     , camera.color     , resolution);
+		cv::resize(camera.depth     , camera.depth     , resolution);
+		cv::resize(camera.confidence, camera.confidence, resolution);
 
-		cv::imshow("camera"    , camera_.color     );
-		cv::imshow("depth"     , camera_.depth     );
-		cv::imshow("confidence", camera_.confidence);
+		cv::imshow("camera"    , camera.color     );
+		cv::imshow("depth"     , camera.depth     );
+		cv::imshow("confidence", camera.confidence);
 
-		/*
 		std::cout
 			<< "================================\n"
-			<< camera_.ar.cvIntrinsics()       << "\n"
-			<< camera_.ar.cvProjectionMatrix() << "\n"
-			<< camera_.ar.cvViewMatrix()       << std::endl;
-		*/
-
-		camera_.depth.release();
+			<< "camera timestamp: " << quadFrame.camera.timestamp << "\n"
+			<< "imu    timestamp: " << quadFrame.imu.timestamp    << "\n"
+			<< "gps    timestamp: " << quadFrame.gps.timestamp    << std::endl;
 
 		if ('q' == cv::waitKey(1)) break;
 	}

@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
 	while(true) {
 		auto gps = loader.next();
 		if (!gps.has_value()) break;
-		qs::GPS& gps_ = gps.value();
+		qs::GPS gps_ = gps.value();
 
 		std::cout
 			<< "================================\n"

@@ -10,11 +10,11 @@ namespace qs {
 		virtual ~QuadLoader();
 		void open(std::string recDirPath);
 		void close();
-		bool isOpened();
+		bool isOpened() const;
 		std::optional<QuadFrame> next();
 
 	private:
-		std::optional<QuadFrame> quadFrame;
+		bool isOpened_ = false;
 		CameraLoader cameraLoader;
 		IMULoader imuLoader;
 		GPSLoader gpsLoader;

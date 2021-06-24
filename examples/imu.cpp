@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
 	while(true) {
 		auto imu = loader.next();
 		if (!imu.has_value()) break;
-		qs::IMU& imu_ = imu.value();
+		qs::IMU imu_ = imu.value();
 
 		std::cout
 			<< "================================\n"
