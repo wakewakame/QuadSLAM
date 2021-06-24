@@ -1,10 +1,7 @@
 #pragma once
-#include <iostream>
 #include <optional>
 #include <fstream>
 #include <stdint.h>
-#include <exception>
-#include <iostream>
 #include "opencv2/opencv.hpp"
 #include "opencv2/videoio.hpp"
 #include "zlib.h"

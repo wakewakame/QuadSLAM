@@ -51,21 +51,38 @@ add_subdirectory("${JSON_DIR}")
 # 全てのソースファイルを再帰的に検索する
 file(GLOB_RECURSE ALL_CPP_FILES "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
+# 実行ファイルを作成するための関数
+function(qs_make_app)
+	# 引数の解析
+	set(oneValueArgs APP_NAME SOURCE)
+	cmake_parse_arguments(ARG "" "${oneValueArgs}" "" ${ARGN})
+
+	# ターゲットの作成
+	add_executable("${ARG_APP_NAME}" "${ARG_SOURCE}" "${ALL_CPP_FILES}")
+	target_include_directories("${ARG_APP_NAME}" PRIVATE "${PROJECT_SOURCE_DIR}/include")
+
+	# OpenCVをライブラリとして追加
+	target_link_libraries("${ARG_APP_NAME}" PRIVATE "${OPENCV_BUILD_LIST_TARGET}")
+	target_include_directories("${ARG_APP_NAME}" PRIVATE
+		"${CMAKE_BINARY_DIR}"
+		"${OPENCV_DIR}/include"
+		"${OPENCV_BUILD_LIST_INCLUDE}"
+	)
+
+	# zlibをライブラリとして追加
+	target_link_libraries("${ARG_APP_NAME}" PRIVATE "${ZLIB_LIBRARY}")
+	target_include_directories("${ARG_APP_NAME}" PRIVATE "${ZLIB_INCLUDE_DIR}")
+
+	# nlohmann_jsonをライブラリとして追加
+	target_link_libraries("${ARG_APP_NAME}" PRIVATE nlohmann_json::nlohmann_json)
+endfunction()
+
 # メインプログラムの作成
-add_executable(quadslam "${PROJECT_SOURCE_DIR}/main.cpp" "${ALL_CPP_FILES}")
-target_include_directories(quadslam PUBLIC "${PROJECT_SOURCE_DIR}/include")
+qs_make_app(APP_NAME quadslam SOURCE "${PROJECT_SOURCE_DIR}/main.cpp")
 
-# OpenCVをライブラリとして追加
-target_link_libraries(quadslam PRIVATE "${OPENCV_BUILD_LIST_TARGET}")
-target_include_directories(quadslam PRIVATE
-	"${CMAKE_BINARY_DIR}"
-	"${OPENCV_DIR}/include"
-	"${OPENCV_BUILD_LIST_INCLUDE}"
-)
-
-# zlibをライブラリとして追加
-target_link_libraries(quadslam PRIVATE "${ZLIB_LIBRARY}")
-target_include_directories(quadslam PRIVATE "${ZLIB_INCLUDE_DIR}")
-
-# nlohmann_jsonをライブラリとして追加
-target_link_libraries(quadslam PRIVATE nlohmann_json::nlohmann_json)
+# 全サンプルプログラムの作成
+file(GLOB_RECURSE ALL_EXAMPLE_FILES "${PROJECT_SOURCE_DIR}/examples/*.cpp")
+foreach(SOURCE IN LISTS ALL_EXAMPLE_FILES)
+	get_filename_component(EXAMPLE_NAME "${SOURCE}" NAME_WLE)
+	qs_make_app(APP_NAME "example_${EXAMPLE_NAME}" SOURCE "${SOURCE}")
+endforeach()

@@ -4,9 +4,9 @@
 int main(int argc, char* argv[]) {
 	if (2 != argc) {
 		std::cout
-			<< "QuadSLAM version 0.0.1\n"
+			<< "example_camera version 0.0.1\n"
 			<< "\n"
-			<< "usage: quadslam input_path\n"
+			<< "usage: example_camera input_path\n"
 			<< "  input_path: Directory containing QuadDump recording files"
 			<< "\n"
 			<< std::endl;
@@ -14,12 +14,12 @@ int main(int argc, char* argv[]) {
 	}
 
 	std::string recDirPath = argv[1];
-	qs::CameraLoader cl;
-	cl.open(recDirPath);
-	if (!cl.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
+	qs::CameraLoader loader;
+	loader.open(recDirPath);
+	if (!loader.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
 
 	while(true) {
-		auto camera = cl.next();
+		auto camera = loader.next();
 		if (!camera.has_value()) break;
 		qs::Camera& camera_ = camera.value();
 
@@ -37,9 +37,10 @@ int main(int argc, char* argv[]) {
 
 		std::cout
 			<< "================================\n"
-			<< camera_.ar.cvIntrinsics()       << "\n"
-			<< camera_.ar.cvProjectionMatrix() << "\n"
-			<< camera_.ar.cvViewMatrix()       << std::endl;
+			<< "timestamp: "         << camera_.timestamp               << "\n\n"
+			<< "intrinsics:\n"       << camera_.ar.cvIntrinsics()       << "\n\n"
+			<< "projectionMatrix:\n" << camera_.ar.cvProjectionMatrix() << "\n\n"
+			<< "viewMatrix:\n"       << camera_.ar.cvViewMatrix()       << std::endl;
 
 		if ('q' == cv::waitKey(1)) break;
 	}

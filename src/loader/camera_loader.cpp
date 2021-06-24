@@ -16,9 +16,7 @@ void CameraLoader::open(std::string recDirPath) {
 		cameraFrameInfoPath = recDirPath + "/cameraFrameInfo",
 		cameraPath          = recDirPath + "/camera.mp4",
 		depthPath           = recDirPath + "/depth",
-		confidencePath      = recDirPath + "/confidence",
-		imuPath             = recDirPath + "/imu",
-		gpsPath             = recDirPath + "/gps";
+		confidencePath      = recDirPath + "/confidence";
 
 	// 録画データ全体の情報を取得
 	std::ifstream infoJsonFs(infoJsonPath, std::ios_base::in | std::ios_base::binary);

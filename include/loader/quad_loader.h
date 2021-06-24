@@ -1,14 +1,7 @@
 #pragma once
-#include <iostream>
-#include <optional>
-#include <fstream>
-#include <stdint.h>
-#include <exception>
-#include <iostream>
-#include "opencv2/opencv.hpp"
-#include "opencv2/videoio.hpp"
-#include "zlib.h"
-#include "nlohmann/json.hpp"
+#include "camera_loader.h"
+#include "imu_loader.h"
+#include "gps_loader.h"
 #include "types.h"
 
 namespace qs {

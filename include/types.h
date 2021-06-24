@@ -4,7 +4,7 @@
 
 namespace qs {
 	struct IMU {
-		double timestampe = .0;
+		double timestamp = .0;
 		double gravity[3] = { .0, .0, .0 };
 		double userAccleration[3] = { .0, .0, .0 };
 		double attitude[3] = { .0, .0, .0 };
@@ -15,7 +15,7 @@ namespace qs {
 	};
 
 	struct GPS {
-		double timestampe = .0;
+		double timestamp = .0;
 		double latitude = .0, longitude = .0, altitude = .0;
 		double horizontalAccuracy = .0, verticalAccuracy = .0;
 
