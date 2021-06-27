@@ -13,30 +13,21 @@ find_package(Threads REQUIRED)
 # compile_commands.jsonを生成するようにする
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "generate compile_commands.json" FORCE)
 
-include(ExternalProject)
+include(FetchContent)
 
 # zlibの追加
-set(ZLIB_TARGET_NAME "zlib")
-set(ZLIB_DIR "${PROJECT_BINARY_DIR}/3rdparty/${ZLIB_TARGET_NAME}")
-set(ZLIB_SOURCE_DIR "${ZLIB_DIR}/Source/${ZLIB_TARGET_NAME}")
-set(ZLIB_BINARY_DIR "${ZLIB_DIR}/Build/${ZLIB_TARGET_NAME}")
-ExternalProject_Add(
+string(TOLOWER "zlib" ZLIB_TARGET_NAME)
+FetchContent_Declare(
 	"${ZLIB_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/madler/zlib
 	GIT_TAG v1.2.11
-	PREFIX "${ZLIB_DIR}"
-	SOURCE_DIR "${ZLIB_SOURCE_DIR}"
-	BINARY_DIR "${ZLIB_BINARY_DIR}"
-	#CMAKE_GENERATOR "Unix Makefiles"
-	#BUILD_COMMAND make
-	INSTALL_COMMAND ""
 )
+FetchContent_MakeAvailable("${ZLIB_TARGET_NAME}")
+set(ZLIB_SOURCE_DIR "${${ZLIB_TARGET_NAME}_SOURCE_DIR}")
 
 # OpenCVの追加
-set(OPENCV_TARGET_NAME "opencv")
-set(OPENCV_DIR "${PROJECT_BINARY_DIR}/3rdparty/${OPENCV_TARGET_NAME}")
-set(OPENCV_SOURCE_DIR "${OPENCV_DIR}/Source/${OPENCV_TARGET_NAME}")
-set(OPENCV_BINARY_DIR "${OPENCV_DIR}/Build/${OPENCV_TARGET_NAME}")
+string(TOLOWER "opencv" OPENCV_TARGET_NAME)
+# 必要最低限のモジュールのみをビルドする
 set(OPENCV_BUILD_LIST
 	"core"
 	"imgproc"
@@ -45,57 +36,40 @@ set(OPENCV_BUILD_LIST
 	"videoio"
 )
 string(REGEX REPLACE ";" "," OPENCV_BUILD_LIST_STRING "${OPENCV_BUILD_LIST}")
-string(REGEX REPLACE "([^;]+)" "libopencv_\\1.so" OPENCV_BUILD_LIST_LIBRARIES "${OPENCV_BUILD_LIST}")
-string(REGEX REPLACE "([^;]+)" "${OPENCV_SOURCE_DIR}/modules/\\1/include" OPENCV_BUILD_LIST_INCLUDE "${OPENCV_BUILD_LIST}")
-ExternalProject_Add(
+set(BUILD_LIST "${OPENCV_BUILD_LIST_STRING}" CACHE STRING "OpenCV Build List" FORCE)
+FetchContent_Declare(
 	"${OPENCV_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/opencv/opencv
 	GIT_TAG 4.5.2
-	PREFIX "${OPENCV_DIR}"
-	SOURCE_DIR "${OPENCV_SOURCE_DIR}"
-	BINARY_DIR "${OPENCV_BINARY_DIR}"
-	#CMAKE_GENERATOR "Unix Makefiles"
-	BUILD_COMMAND make -j6
-	INSTALL_COMMAND ""
-	CMAKE_ARGS
-		-DBUILD_LIST="${OPENCV_BUILD_LIST_STRING}"
-		-DBUILD_ZLIB=ON
 )
+FetchContent_MakeAvailable("${OPENCV_TARGET_NAME}")
+set(OPENCV_SOURCE_DIR "${${OPENCV_TARGET_NAME}_SOURCE_DIR}")
+string(REGEX REPLACE "([^;]+)" "opencv_\\1" OPENCV_BUILD_LIST_TARGET "${OPENCV_BUILD_LIST}")
+string(REGEX REPLACE "([^;]+)" "${OPENCV_SOURCE_DIR}/modules/\\1/include" OPENCV_BUILD_LIST_INCLUDE "${OPENCV_BUILD_LIST}")
 
 # nlohmann_jsonの追加
-set(JSON_TARGET_NAME "nlohmann_json")
-set(JSON_DIR "${PROJECT_BINARY_DIR}/3rdparty/${JSON_TARGET_NAME}")
-set(JSON_SOURCE_DIR "${JSON_DIR}/Source/${JSON_TARGET_NAME}")
-set(JSON_BINARY_DIR "${JSON_DIR}/Build/${JSON_TARGET_NAME}")
-ExternalProject_Add(
+string(TOLOWER "nlohmann_json" JSON_TARGET_NAME)
+# テストはビルドしないようにする
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+FetchContent_Declare(
 	"${JSON_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/nlohmann/json
 	GIT_TAG v3.9.1
-	PREFIX "${JSON_DIR}"
-	SOURCE_DIR "${JSON_SOURCE_DIR}"
-	BINARY_DIR "${JSON_BINARY_DIR}"
-	#CMAKE_GENERATOR "Unix Makefiles"
-	#BUILD_COMMAND make
-	INSTALL_COMMAND ""
-	CMAKE_ARGS -DJSON_BuildTests=OFF
 )
+FetchContent_MakeAvailable("${JSON_TARGET_NAME}")
+set(JSON_SOURCE_DIR "${${JSON_TARGET_NAME}_SOURCE_DIR}")
+set(JSON_BINARY_DIR "${${JSON_TARGET_NAME}_BINARY_DIR}")
 
 # Cinderの追加
-set(CINDER_TARGET_NAME "Cinder")
-set(CINDER_DIR "${PROJECT_BINARY_DIR}/3rdparty/${CINDER_TARGET_NAME}")
-set(CINDER_SOURCE_DIR "${CINDER_DIR}/Source/${CINDER_TARGET_NAME}")
-set(CINDER_BINARY_DIR "${CINDER_DIR}/Build/${CINDER_TARGET_NAME}")
-ExternalProject_Add(
+string(TOLOWER "cinder" CINDER_TARGET_NAME)
+FetchContent_Declare(
 	"${CINDER_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/cinder/Cinder
 	GIT_TAG 374c8834f2e03c476d1d913486dd6a5038dceba6
-	PREFIX "${CINDER_DIR}"
-	SOURCE_DIR "${CINDER_SOURCE_DIR}"
-	BINARY_DIR "${CINDER_BINARY_DIR}"
-	#CMAKE_GENERATOR "Unix Makefiles"
-	BUILD_COMMAND make -j6
-	INSTALL_COMMAND ""
 )
+FetchContent_MakeAvailable("${CINDER_TARGET_NAME}")
+set(CINDER_SOURCE_DIR "${${CINDER_TARGET_NAME}_SOURCE_DIR}")
+include("${CINDER_SOURCE_DIR}/proj/cmake/modules/cinderMakeApp.cmake")
 
 # 全てのソースファイルを再帰的に検索する
 file(GLOB_RECURSE ALL_CPP_FILES "${PROJECT_SOURCE_DIR}/src/*.cpp")
@@ -107,36 +81,21 @@ function(qs_make_app)
 	cmake_parse_arguments(ARG "" "${oneValueArgs}" "" ${ARGN})
 
 	# ターゲットの作成
-	add_executable("${ARG_APP_NAME}" "${ARG_SOURCE}" "${ALL_CPP_FILES}")
-	target_include_directories("${ARG_APP_NAME}" PRIVATE "${PROJECT_SOURCE_DIR}/include")
-
-	# zlibをライブラリとして追加
-	add_dependencies("${ARG_APP_NAME}" "${ZLIB_TARGET_NAME}")
-	target_include_directories("${ARG_APP_NAME}" PRIVATE "${ZLIB_SOURCE_DIR}")
-	target_link_directories("${ARG_APP_NAME}" PRIVATE "${ZLIB_BINARY_DIR}")
-	target_link_libraries("${ARG_APP_NAME}" PRIVATE "libz.a")
-
-	# OpenCVをライブラリとして追加
-	add_dependencies("${ARG_APP_NAME}" "${OPENCV_TARGET_NAME}")
-	# 追加のライブラリディレクトリ
-	target_link_directories("${ARG_APP_NAME}" PRIVATE "${OPENCV_BINARY_DIR}/lib")
-	# 追加の依存ファイル
-	target_link_libraries("${ARG_APP_NAME}" PRIVATE ${OPENCV_BUILD_LIST_LIBRARIES})
-	target_include_directories("${ARG_APP_NAME}" PRIVATE
-		"${OPENCV_SOURCE_DIR}/include"
-		"${OPENCV_BUILD_LIST_INCLUDE}"
-		"${OPENCV_BINARY_DIR}"
+	ci_make_app(
+		CINDER_PATH "${CINDER_SOURCE_DIR}"
+		APP_NAME    "${ARG_APP_NAME}"
+		SOURCES     "${ARG_SOURCE}" "${ALL_CPP_FILES}"
+		INCLUDES
+			"${PROJECT_SOURCE_DIR}/include"
+			"${ZLIB_SOURCE_DIR}"
+			"${CMAKE_BINARY_DIR}"
+			"${OPENCV_SOURCE_DIR}/include"
+			"${OPENCV_BUILD_LIST_INCLUDE}"
+			 "${JSON_SOURCE_DIR}/include"
+		LIBRARIES
+			"${ZLIB_TARGET_NAME}"
+			"${OPENCV_BUILD_LIST_TARGET}"
 	)
-
-	# nlohmann_jsonをライブラリとして追加
-	add_dependencies("${ARG_APP_NAME}" "${JSON_TARGET_NAME}")
-	target_include_directories("${ARG_APP_NAME}" PRIVATE "${JSON_SOURCE_DIR}/include")
-
-	# Cinderをライブラリとして追加
-	add_dependencies("${ARG_APP_NAME}" "${CINDER_TARGET_NAME}")
-	target_link_directories("${ARG_APP_NAME}" PRIVATE "${CINDER_SOURCE_DIR}/lib/linux/x86_64/ogl/Debug")
-	target_link_libraries("${ARG_APP_NAME}" PRIVATE "libcinder.a")
-	target_include_directories("${ARG_APP_NAME}" PRIVATE "${CINDER_SOURCE_DIR}/include")
 endfunction()
 
 # メインプログラムの作成
