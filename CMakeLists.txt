@@ -13,21 +13,31 @@ find_package(Threads REQUIRED)
 # compile_commands.jsonを生成するようにする
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "generate compile_commands.json" FORCE)
 
+include(ExternalProject)
 include(FetchContent)
 
 # zlibの追加
 string(TOLOWER "zlib" ZLIB_TARGET_NAME)
-FetchContent_Declare(
+set(ZLIB_DIR "${PROJECT_BINARY_DIR}/3rdparty/${ZLIB_TARGET_NAME}")
+set(ZLIB_SOURCE_DIR "${ZLIB_DIR}/Source/${ZLIB_TARGET_NAME}")
+set(ZLIB_BINARY_DIR "${ZLIB_DIR}/Build/${ZLIB_TARGET_NAME}")
+ExternalProject_Add(
 	"${ZLIB_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/madler/zlib
 	GIT_TAG v1.2.11
+	PREFIX "${ZLIB_DIR}"
+	SOURCE_DIR "${ZLIB_SOURCE_DIR}"
+	BINARY_DIR "${ZLIB_BINARY_DIR}"
+	#CMAKE_GENERATOR "Unix Makefiles"
+	#BUILD_COMMAND make
+	INSTALL_COMMAND ""
 )
-FetchContent_MakeAvailable("${ZLIB_TARGET_NAME}")
-set(ZLIB_SOURCE_DIR "${${ZLIB_TARGET_NAME}_SOURCE_DIR}")
 
 # OpenCVの追加
 string(TOLOWER "opencv" OPENCV_TARGET_NAME)
-# 必要最低限のモジュールのみをビルドする
+set(OPENCV_DIR "${PROJECT_BINARY_DIR}/3rdparty/${OPENCV_TARGET_NAME}")
+set(OPENCV_SOURCE_DIR "${OPENCV_DIR}/Source/${OPENCV_TARGET_NAME}")
+set(OPENCV_BINARY_DIR "${OPENCV_DIR}/Build/${OPENCV_TARGET_NAME}")
 set(OPENCV_BUILD_LIST
 	"core"
 	"imgproc"
@@ -35,33 +45,51 @@ set(OPENCV_BUILD_LIST
 	"highgui"
 	"videoio"
 )
-string(REGEX REPLACE ";" "," OPENCV_BUILD_LIST_STRING "${OPENCV_BUILD_LIST}")
-set(BUILD_LIST "${OPENCV_BUILD_LIST_STRING}" CACHE STRING "OpenCV Build List" FORCE)
-FetchContent_Declare(
+string(REGEX REPLACE ";" "," OPENCV_BUILD_LIST_STRING "${OPENCV_BUILD_LIST};")
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+	string(REGEX REPLACE "([^;]+)" "libopencv_\\1.dylib" OPENCV_BUILD_LIST_LIBRARIES "${OPENCV_BUILD_LIST}")
+elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
+	string(REGEX REPLACE "([^;]+)" "libopencv_\\1.so" OPENCV_BUILD_LIST_LIBRARIES "${OPENCV_BUILD_LIST}")
+elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
+	string(REGEX REPLACE "([^;]+)" "libopencv_\\1.so" OPENCV_BUILD_LIST_LIBRARIES "${OPENCV_BUILD_LIST}")
+else()
+	message(FATAL_ERROR "this operating system is not supported.")
+endif()
+string(REGEX REPLACE "([^;]+)" "${OPENCV_SOURCE_DIR}/modules/\\1/include" OPENCV_BUILD_LIST_INCLUDE "${OPENCV_BUILD_LIST}")
+ExternalProject_Add(
 	"${OPENCV_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/opencv/opencv
 	GIT_TAG 4.5.2
+	PREFIX "${OPENCV_DIR}"
+	SOURCE_DIR "${OPENCV_SOURCE_DIR}"
+	BINARY_DIR "${OPENCV_BINARY_DIR}"
+	#CMAKE_GENERATOR "Unix Makefiles"
+	#BUILD_COMMAND make
+	INSTALL_COMMAND ""
+	CMAKE_ARGS
+		-DBUILD_LIST="${OPENCV_BUILD_LIST_STRING}"
+		-DBUILD_ZLIB=ON
 )
-FetchContent_MakeAvailable("${OPENCV_TARGET_NAME}")
-set(OPENCV_SOURCE_DIR "${${OPENCV_TARGET_NAME}_SOURCE_DIR}")
-string(REGEX REPLACE "([^;]+)" "opencv_\\1" OPENCV_BUILD_LIST_TARGET "${OPENCV_BUILD_LIST}")
-string(REGEX REPLACE "([^;]+)" "${OPENCV_SOURCE_DIR}/modules/\\1/include" OPENCV_BUILD_LIST_INCLUDE "${OPENCV_BUILD_LIST}")
 
 # nlohmann_jsonの追加
 string(TOLOWER "nlohmann_json" JSON_TARGET_NAME)
-# テストはビルドしないようにする
-set(JSON_BuildTests OFF CACHE INTERNAL "")
-FetchContent_Declare(
+set(JSON_DIR "${PROJECT_BINARY_DIR}/3rdparty/${JSON_TARGET_NAME}")
+set(JSON_SOURCE_DIR "${JSON_DIR}/Source/${JSON_TARGET_NAME}")
+set(JSON_BINARY_DIR "${JSON_DIR}/Build/${JSON_TARGET_NAME}")
+ExternalProject_Add(
 	"${JSON_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/nlohmann/json
 	GIT_TAG v3.9.1
+	PREFIX "${JSON_DIR}"
+	SOURCE_DIR "${JSON_SOURCE_DIR}"
+	BINARY_DIR "${JSON_BINARY_DIR}"
+	BUILD_COMMAND ""
+	INSTALL_COMMAND ""
+	CMAKE_ARGS -DJSON_BuildTests=OFF
 )
-FetchContent_MakeAvailable("${JSON_TARGET_NAME}")
-set(JSON_SOURCE_DIR "${${JSON_TARGET_NAME}_SOURCE_DIR}")
-set(JSON_BINARY_DIR "${${JSON_TARGET_NAME}_BINARY_DIR}")
 
 # Cinderの追加
-string(TOLOWER "cinder" CINDER_TARGET_NAME)
+string(TOLOWER "Cinder" CINDER_TARGET_NAME)
 FetchContent_Declare(
 	"${CINDER_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/cinder/Cinder
@@ -85,17 +113,42 @@ function(qs_make_app)
 		CINDER_PATH "${CINDER_SOURCE_DIR}"
 		APP_NAME    "${ARG_APP_NAME}"
 		SOURCES     "${ARG_SOURCE}" "${ALL_CPP_FILES}"
-		INCLUDES
-			"${PROJECT_SOURCE_DIR}/include"
-			"${ZLIB_SOURCE_DIR}"
-			"${CMAKE_BINARY_DIR}"
-			"${OPENCV_SOURCE_DIR}/include"
-			"${OPENCV_BUILD_LIST_INCLUDE}"
-			 "${JSON_SOURCE_DIR}/include"
-		LIBRARIES
-			"${ZLIB_TARGET_NAME}"
-			"${OPENCV_BUILD_LIST_TARGET}"
 	)
+
+	# 以下はCinderを使用しない場合のターゲット追加方法
+	# ターゲットの作成
+	#add_executable("${ARG_APP_NAME}" "${ARG_SOURCE}" "${ALL_CPP_FILES}")
+
+	# 追加のインクルードディレクトリ
+	target_include_directories("${ARG_APP_NAME}" PUBLIC "${PROJECT_SOURCE_DIR}/include")
+
+	# zlibをライブラリとして追加
+	add_dependencies("${ARG_APP_NAME}" "${ZLIB_TARGET_NAME}")
+	target_include_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_SOURCE_DIR}")
+	target_link_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_BINARY_DIR}")
+	if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+		target_link_libraries("${ARG_APP_NAME}" "libz.a")
+	elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
+		target_link_libraries("${ARG_APP_NAME}" "libz.a")
+	elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
+		target_link_libraries("${ARG_APP_NAME}" "libz.lib")
+	endif()
+
+	# OpenCVをライブラリとして追加
+	add_dependencies("${ARG_APP_NAME}" "${OPENCV_TARGET_NAME}")
+	# 追加のライブラリディレクトリ
+	target_link_directories("${ARG_APP_NAME}" PUBLIC "${OPENCV_BINARY_DIR}/lib")
+	# 追加の依存ファイル
+	target_link_libraries("${ARG_APP_NAME}" "${OPENCV_BUILD_LIST_LIBRARIES}")
+	target_include_directories("${ARG_APP_NAME}" PUBLIC
+		"${OPENCV_SOURCE_DIR}/include"
+		"${OPENCV_BUILD_LIST_INCLUDE}"
+		"${OPENCV_BINARY_DIR}"
+	)
+
+	# nlohmann_jsonをライブラリとして追加
+	add_dependencies("${ARG_APP_NAME}" "${JSON_TARGET_NAME}")
+	target_include_directories("${ARG_APP_NAME}" PRIVATE "${JSON_SOURCE_DIR}/include")
 endfunction()
 
 # メインプログラムの作成
