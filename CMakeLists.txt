@@ -14,6 +14,7 @@ find_package(Threads REQUIRED)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "generate compile_commands.json" FORCE)
 
 include(ExternalProject)
+include(FetchContent)
 
 # zlibの追加
 set(ZLIB_TARGET_NAME "zlib")
@@ -44,8 +45,16 @@ set(OPENCV_BUILD_LIST
 	"highgui"
 	"videoio"
 )
-string(REGEX REPLACE ";" "," OPENCV_BUILD_LIST_STRING "${OPENCV_BUILD_LIST}")
-string(REGEX REPLACE "([^;]+)" "libopencv_\\1.so" OPENCV_BUILD_LIST_LIBRARIES "${OPENCV_BUILD_LIST}")
+string(REGEX REPLACE ";" "," OPENCV_BUILD_LIST_STRING "${OPENCV_BUILD_LIST};")
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+	string(REGEX REPLACE "([^;]+)" "libopencv_\\1.dylib" OPENCV_BUILD_LIST_LIBRARIES "${OPENCV_BUILD_LIST}")
+elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
+	string(REGEX REPLACE "([^;]+)" "libopencv_\\1.so" OPENCV_BUILD_LIST_LIBRARIES "${OPENCV_BUILD_LIST}")
+elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
+	string(REGEX REPLACE "([^;]+)" "libopencv_\\1.so" OPENCV_BUILD_LIST_LIBRARIES "${OPENCV_BUILD_LIST}")
+else()
+	message(FATAL_ERROR "this operating system is not supported.")
+endif()
 string(REGEX REPLACE "([^;]+)" "${OPENCV_SOURCE_DIR}/modules/\\1/include" OPENCV_BUILD_LIST_INCLUDE "${OPENCV_BUILD_LIST}")
 ExternalProject_Add(
 	"${OPENCV_TARGET_NAME}"
@@ -55,7 +64,7 @@ ExternalProject_Add(
 	SOURCE_DIR "${OPENCV_SOURCE_DIR}"
 	BINARY_DIR "${OPENCV_BINARY_DIR}"
 	#CMAKE_GENERATOR "Unix Makefiles"
-	BUILD_COMMAND make -j6
+	#BUILD_COMMAND make
 	INSTALL_COMMAND ""
 	CMAKE_ARGS
 		-DBUILD_LIST="${OPENCV_BUILD_LIST_STRING}"
@@ -74,13 +83,13 @@ ExternalProject_Add(
 	PREFIX "${JSON_DIR}"
 	SOURCE_DIR "${JSON_SOURCE_DIR}"
 	BINARY_DIR "${JSON_BINARY_DIR}"
-	#CMAKE_GENERATOR "Unix Makefiles"
-	#BUILD_COMMAND make
+	BUILD_COMMAND ""
 	INSTALL_COMMAND ""
 	CMAKE_ARGS -DJSON_BuildTests=OFF
 )
 
 # Cinderの追加
+#[[
 set(CINDER_TARGET_NAME "Cinder")
 set(CINDER_DIR "${PROJECT_BINARY_DIR}/3rdparty/${CINDER_TARGET_NAME}")
 set(CINDER_SOURCE_DIR "${CINDER_DIR}/Source/${CINDER_TARGET_NAME}")
@@ -93,9 +102,10 @@ ExternalProject_Add(
 	SOURCE_DIR "${CINDER_SOURCE_DIR}"
 	BINARY_DIR "${CINDER_BINARY_DIR}"
 	#CMAKE_GENERATOR "Unix Makefiles"
-	BUILD_COMMAND make -j6
+	#BUILD_COMMAND make -j6
 	INSTALL_COMMAND ""
 )
+]]
 
 # 全てのソースファイルを再帰的に検索する
 file(GLOB_RECURSE ALL_CPP_FILES "${PROJECT_SOURCE_DIR}/src/*.cpp")
@@ -114,7 +124,13 @@ function(qs_make_app)
 	add_dependencies("${ARG_APP_NAME}" "${ZLIB_TARGET_NAME}")
 	target_include_directories("${ARG_APP_NAME}" PRIVATE "${ZLIB_SOURCE_DIR}")
 	target_link_directories("${ARG_APP_NAME}" PRIVATE "${ZLIB_BINARY_DIR}")
-	target_link_libraries("${ARG_APP_NAME}" PRIVATE "libz.a")
+	if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+		target_link_libraries("${ARG_APP_NAME}" PRIVATE "libz.a")
+	elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
+		target_link_libraries("${ARG_APP_NAME}" PRIVATE "libz.a")
+	elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
+		target_link_libraries("${ARG_APP_NAME}" PRIVATE "libz.lib")
+	endif()
 
 	# OpenCVをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${OPENCV_TARGET_NAME}")
@@ -133,10 +149,12 @@ function(qs_make_app)
 	target_include_directories("${ARG_APP_NAME}" PRIVATE "${JSON_SOURCE_DIR}/include")
 
 	# Cinderをライブラリとして追加
+	#[[
 	add_dependencies("${ARG_APP_NAME}" "${CINDER_TARGET_NAME}")
 	target_link_directories("${ARG_APP_NAME}" PRIVATE "${CINDER_SOURCE_DIR}/lib/linux/x86_64/ogl/Debug")
 	target_link_libraries("${ARG_APP_NAME}" PRIVATE "libcinder.a")
 	target_include_directories("${ARG_APP_NAME}" PRIVATE "${CINDER_SOURCE_DIR}/include")
+	]]
 endfunction()
 
 # メインプログラムの作成
