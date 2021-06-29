@@ -17,7 +17,7 @@ include(ExternalProject)
 include(FetchContent)
 
 # zlibの追加
-set(ZLIB_TARGET_NAME "zlib")
+string(TOLOWER "zlib" ZLIB_TARGET_NAME)
 set(ZLIB_DIR "${PROJECT_BINARY_DIR}/3rdparty/${ZLIB_TARGET_NAME}")
 set(ZLIB_SOURCE_DIR "${ZLIB_DIR}/Source/${ZLIB_TARGET_NAME}")
 set(ZLIB_BINARY_DIR "${ZLIB_DIR}/Build/${ZLIB_TARGET_NAME}")
@@ -34,7 +34,7 @@ ExternalProject_Add(
 )
 
 # OpenCVの追加
-set(OPENCV_TARGET_NAME "opencv")
+string(TOLOWER "opencv" OPENCV_TARGET_NAME)
 set(OPENCV_DIR "${PROJECT_BINARY_DIR}/3rdparty/${OPENCV_TARGET_NAME}")
 set(OPENCV_SOURCE_DIR "${OPENCV_DIR}/Source/${OPENCV_TARGET_NAME}")
 set(OPENCV_BINARY_DIR "${OPENCV_DIR}/Build/${OPENCV_TARGET_NAME}")
@@ -72,7 +72,7 @@ ExternalProject_Add(
 )
 
 # nlohmann_jsonの追加
-set(JSON_TARGET_NAME "nlohmann_json")
+string(TOLOWER "nlohmann_json" JSON_TARGET_NAME)
 set(JSON_DIR "${PROJECT_BINARY_DIR}/3rdparty/${JSON_TARGET_NAME}")
 set(JSON_SOURCE_DIR "${JSON_DIR}/Source/${JSON_TARGET_NAME}")
 set(JSON_BINARY_DIR "${JSON_DIR}/Build/${JSON_TARGET_NAME}")
@@ -89,23 +89,15 @@ ExternalProject_Add(
 )
 
 # Cinderの追加
-#[[
-set(CINDER_TARGET_NAME "Cinder")
-set(CINDER_DIR "${PROJECT_BINARY_DIR}/3rdparty/${CINDER_TARGET_NAME}")
-set(CINDER_SOURCE_DIR "${CINDER_DIR}/Source/${CINDER_TARGET_NAME}")
-set(CINDER_BINARY_DIR "${CINDER_DIR}/Build/${CINDER_TARGET_NAME}")
-ExternalProject_Add(
+string(TOLOWER "Cinder" CINDER_TARGET_NAME)
+FetchContent_Declare(
 	"${CINDER_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/cinder/Cinder
 	GIT_TAG 374c8834f2e03c476d1d913486dd6a5038dceba6
-	PREFIX "${CINDER_DIR}"
-	SOURCE_DIR "${CINDER_SOURCE_DIR}"
-	BINARY_DIR "${CINDER_BINARY_DIR}"
-	#CMAKE_GENERATOR "Unix Makefiles"
-	#BUILD_COMMAND make -j6
-	INSTALL_COMMAND ""
 )
-]]
+FetchContent_MakeAvailable("${CINDER_TARGET_NAME}")
+set(CINDER_SOURCE_DIR "${${CINDER_TARGET_NAME}_SOURCE_DIR}")
+include("${CINDER_SOURCE_DIR}/proj/cmake/modules/cinderMakeApp.cmake")
 
 # 全てのソースファイルを再帰的に検索する
 file(GLOB_RECURSE ALL_CPP_FILES "${PROJECT_SOURCE_DIR}/src/*.cpp")
@@ -117,28 +109,38 @@ function(qs_make_app)
 	cmake_parse_arguments(ARG "" "${oneValueArgs}" "" ${ARGN})
 
 	# ターゲットの作成
-	add_executable("${ARG_APP_NAME}" "${ARG_SOURCE}" "${ALL_CPP_FILES}")
-	target_include_directories("${ARG_APP_NAME}" PRIVATE "${PROJECT_SOURCE_DIR}/include")
+	ci_make_app(
+		CINDER_PATH "${CINDER_SOURCE_DIR}"
+		APP_NAME    "${ARG_APP_NAME}"
+		SOURCES     "${ARG_SOURCE}" "${ALL_CPP_FILES}"
+	)
+
+	# 以下はCinderを使用しない場合のターゲット追加方法
+	# ターゲットの作成
+	#add_executable("${ARG_APP_NAME}" "${ARG_SOURCE}" "${ALL_CPP_FILES}")
+
+	# 追加のインクルードディレクトリ
+	target_include_directories("${ARG_APP_NAME}" PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
 	# zlibをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${ZLIB_TARGET_NAME}")
-	target_include_directories("${ARG_APP_NAME}" PRIVATE "${ZLIB_SOURCE_DIR}")
-	target_link_directories("${ARG_APP_NAME}" PRIVATE "${ZLIB_BINARY_DIR}")
+	target_include_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_SOURCE_DIR}")
+	target_link_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_BINARY_DIR}")
 	if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-		target_link_libraries("${ARG_APP_NAME}" PRIVATE "libz.a")
+		target_link_libraries("${ARG_APP_NAME}" "libz.a")
 	elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
-		target_link_libraries("${ARG_APP_NAME}" PRIVATE "libz.a")
+		target_link_libraries("${ARG_APP_NAME}" "libz.a")
 	elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
-		target_link_libraries("${ARG_APP_NAME}" PRIVATE "libz.lib")
+		target_link_libraries("${ARG_APP_NAME}" "libz.lib")
 	endif()
 
 	# OpenCVをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${OPENCV_TARGET_NAME}")
 	# 追加のライブラリディレクトリ
-	target_link_directories("${ARG_APP_NAME}" PRIVATE "${OPENCV_BINARY_DIR}/lib")
+	target_link_directories("${ARG_APP_NAME}" PUBLIC "${OPENCV_BINARY_DIR}/lib")
 	# 追加の依存ファイル
-	target_link_libraries("${ARG_APP_NAME}" PRIVATE ${OPENCV_BUILD_LIST_LIBRARIES})
-	target_include_directories("${ARG_APP_NAME}" PRIVATE
+	target_link_libraries("${ARG_APP_NAME}" "${OPENCV_BUILD_LIST_LIBRARIES}")
+	target_include_directories("${ARG_APP_NAME}" PUBLIC
 		"${OPENCV_SOURCE_DIR}/include"
 		"${OPENCV_BUILD_LIST_INCLUDE}"
 		"${OPENCV_BINARY_DIR}"
@@ -147,14 +149,6 @@ function(qs_make_app)
 	# nlohmann_jsonをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${JSON_TARGET_NAME}")
 	target_include_directories("${ARG_APP_NAME}" PRIVATE "${JSON_SOURCE_DIR}/include")
-
-	# Cinderをライブラリとして追加
-	#[[
-	add_dependencies("${ARG_APP_NAME}" "${CINDER_TARGET_NAME}")
-	target_link_directories("${ARG_APP_NAME}" PRIVATE "${CINDER_SOURCE_DIR}/lib/linux/x86_64/ogl/Debug")
-	target_link_libraries("${ARG_APP_NAME}" PRIVATE "libcinder.a")
-	target_include_directories("${ARG_APP_NAME}" PRIVATE "${CINDER_SOURCE_DIR}/include")
-	]]
 endfunction()
 
 # メインプログラムの作成
