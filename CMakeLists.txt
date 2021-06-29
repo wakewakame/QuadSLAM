@@ -16,6 +16,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "generate compile_commands.json"
 include(ExternalProject)
 include(FetchContent)
 
+# OpenCVとCinderはともにzlibに依存しており、このプログラムにはzlibというターゲット名が2つ存在することになる。
+# しかし、CMakeはターゲット名の重複を許していない
+# これを回避するため、ここではExternalProjectで依存ライブラリを管理する。
+# ただし、ExternalProjectはcmakeコマンド実行時ではなくビルド時(makeを実行したときなど)にリポジトリをクローンする。
+# そのため、依存ライブラリのリポジトリ内にある*.cmakeファイルなどをここでincludeできない。
+# Cinderのリポジトリ内にincludeしたいcmakeファイルがあるため、ここでは例外的にCinderをFetchContentで追加している。
+
 # zlibの追加
 string(TOLOWER "zlib" ZLIB_TARGET_NAME)
 set(ZLIB_DIR "${PROJECT_BINARY_DIR}/3rdparty/${ZLIB_TARGET_NAME}")
