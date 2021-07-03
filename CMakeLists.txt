@@ -23,23 +23,6 @@ include(FetchContent)
 # そのため、依存ライブラリのリポジトリ内にある*.cmakeファイルなどをここでincludeできない。
 # Cinderのリポジトリ内にincludeしたいcmakeファイルがあるため、ここでは例外的にCinderをFetchContentで追加している。
 
-# zlibの追加
-string(TOLOWER "zlib" ZLIB_TARGET_NAME)
-set(ZLIB_DIR "${PROJECT_BINARY_DIR}/3rdparty/${ZLIB_TARGET_NAME}")
-set(ZLIB_SOURCE_DIR "${ZLIB_DIR}/Source/${ZLIB_TARGET_NAME}")
-set(ZLIB_BINARY_DIR "${ZLIB_DIR}/Build/${ZLIB_TARGET_NAME}")
-ExternalProject_Add(
-	"${ZLIB_TARGET_NAME}"
-	GIT_REPOSITORY https://github.com/madler/zlib
-	GIT_TAG v1.2.11
-	PREFIX "${ZLIB_DIR}"
-	SOURCE_DIR "${ZLIB_SOURCE_DIR}"
-	BINARY_DIR "${ZLIB_BINARY_DIR}"
-	#CMAKE_GENERATOR "Unix Makefiles"
-	#BUILD_COMMAND make
-	INSTALL_COMMAND ""
-)
-
 # OpenCVの追加
 string(TOLOWER "opencv" OPENCV_TARGET_NAME)
 set(OPENCV_DIR "${PROJECT_BINARY_DIR}/3rdparty/${OPENCV_TARGET_NAME}")
@@ -122,24 +105,11 @@ function(qs_make_app)
 		SOURCES     "${ARG_SOURCE}" "${ALL_CPP_FILES}"
 	)
 
-	# 以下はCinderを使用しない場合のターゲット追加方法
-	# ターゲットの作成
-	#add_executable("${ARG_APP_NAME}" "${ARG_SOURCE}" "${ALL_CPP_FILES}")
-
 	# 追加のインクルードディレクトリ
 	target_include_directories("${ARG_APP_NAME}" PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
 	# zlibをライブラリとして追加
-	add_dependencies("${ARG_APP_NAME}" "${ZLIB_TARGET_NAME}")
-	target_include_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_SOURCE_DIR}")
-	target_link_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_BINARY_DIR}")
-	if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-		target_link_libraries("${ARG_APP_NAME}" "libz.a")
-	elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
-		target_link_libraries("${ARG_APP_NAME}" "libz.a")
-	elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
-		target_link_libraries("${ARG_APP_NAME}" "libz.lib")
-	endif()
+	target_include_directories("${ARG_APP_NAME}" PUBLIC "${CINDER_SOURCE_DIR}/src/zlib")
 
 	# OpenCVをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${OPENCV_TARGET_NAME}")
