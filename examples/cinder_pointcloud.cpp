@@ -1,6 +1,7 @@
 #include "cinder/app/App.h"
 #include "cinder/app/RendererGl.h"
 #include "cinder/gl/gl.h"
+#include "cinder/CameraUi.h"
 
 // メモ
 // "loader/quad_loader.h"を"cinder/gl/gl.h"よりも前にincludeすると
@@ -18,8 +19,10 @@ private:
 	gl::Texture2dRef mDepthTex;
 	gl::Texture2dRef mConfidenceTex;
 	gl::VertBatchRef vert;
-	CameraPersp mCam;
 	double time = 0.0;
+
+	CameraPersp			mCamera;
+	CameraUi			mCamUi;
 
 public:
 	void setup() override {
@@ -50,26 +53,34 @@ public:
 		.vertex(CI_GLSL(150,
 			uniform mat4 ciModelViewProjection;
 			in vec4 ciPosition;
-			in vec4 ciColor;
 			in vec2 ciTexCoord0;
-			out vec4 color;
+			out float alpha;
 			out vec2 uv;
 
 			uniform sampler2D uDepthTex;
+			uniform sampler2D uConfidenceTex;
 			uniform vec2 depthUvScale;
+			uniform vec4 cameraParam;
 			
 			void main(void) {
-				color = ciColor;
 				uv = ciTexCoord0;
-				float depth = texture(uDepthTex, uv * depthUvScale).r;
 				vec4 pos = ciPosition;
-				pos.z -= depth;
-				gl_Position	= ciModelViewProjection * pos;
+				float depth = texture(uDepthTex, uv * depthUvScale).r;
+				int confidence = int(texture(uConfidenceTex, uv * depthUvScale).r * 255.0);
+
+				// Calculate the vertex's world coordinates.
+				float xrw = (pos.x - cameraParam.x) * depth / cameraParam.z;
+				float yrw = (pos.y - cameraParam.y) * depth / cameraParam.w;
+				vec4 xyzw = vec4(xrw, yrw, -depth, 1.0);
+
+				alpha = (confidence == 0) ? 0.0 : 1.0;
+				alpha = 1.0;
+				gl_Position	= ciModelViewProjection * xyzw;
 			}
 		 ))
 		.fragment(CI_GLSL(150,
 			in vec2 uv;
-			in vec4 color;
+			in float alpha;
 			out vec4 oColor;
 			uniform sampler2D uColorTex;
 			uniform sampler2D uDepthTex;
@@ -77,34 +88,25 @@ public:
 			uniform vec2 colorUvScale;
 			uniform vec2 depthUvScale;
 
-			vec4 colorful(float num) {
-				num = log(num);
-				float fill = step(0.6, fract(num * 8.0));
-				num = fract(num) * 6.0;
-				vec3 color =
-					(              num < 1.0) ? vec3(1.0      , num      , 0.0      ) :
-					(1.0 <= num && num < 2.0) ? vec3(2.0 - num, 1.0      , 0.0      ) :
-					(2.0 <= num && num < 3.0) ? vec3(0.0      , 1.0      , num - 2.0) :
-					(3.0 <= num && num < 4.0) ? vec3(0.0      , 4.0 - num, 1.0      ) :
-					(4.0 <= num && num < 5.0) ? vec3(num - 4.0, 0.0      , 1.0      ) :
-												vec3(1.0      , 0.0      , 6.0 - num);
-				return vec4(color, fill);
-			}
-			
 			void main(void) {
-				vec3  color      = texture(uColorTex, uv * colorUvScale).rgb;
-				float depth      = texture(uDepthTex, uv * depthUvScale).r;
-				int   confidence = int(texture(uConfidenceTex, uv * depthUvScale).r * 255.0);
-				vec4  depthColor = colorful(depth);
-				vec3  result     = color * 0.5 + depthColor.rgb * depthColor.a * 0.5;
-				oColor = vec4(result, 1.0);
-
-				oColor = vec4(color, 1.0);
+				vec3 color = texture(uColorTex, uv * colorUvScale).rgb;
+				oColor = vec4(color, alpha);
 			}
 		)));
 		
 		gl::enableDepthWrite();
 		gl::enableDepthRead();
+
+		vert = gl::VertBatch::create( GL_POINTS );
+		for(int y = 0; y < 192; y++) {
+			for(int x = 0; x < 256; x++) {
+				vert->texCoord( (double)x / 255.0, 1.0 - (double)y / 191.0 );
+				vert->vertex( 1920.0 * (double)x / 255.0, 1440.0 * (double)y / 191.0 );
+			}
+		}
+
+		mCamera.lookAt( normalize( vec3( 3, 3, 6 ) ) * 5.0f, vec3(0.0) );
+		mCamUi = CameraUi( &mCamera );
 	}
 	void update() override {
 		auto quad = loader.next();
@@ -147,14 +149,12 @@ public:
 			(float)mDepthTex->getActualWidth()  / (float)camera.depth.cols,
 			(float)mDepthTex->getActualHeight() / (float)camera.depth.rows
 		));
-
-		vert = gl::VertBatch::create( GL_LINE_STRIP );
-		for(int y = 0; y < 192; y++) {
-			for(int x = 0; x < 256; x++) {
-				vert->texCoord( (double)x / 256.0, (double)y / 192.0 );
-				vert->vertex( 32.0 * (double)x / 256.0 - 16.0, 16.0 - 32.0 * (double)y / 192.0 );
-			}
-		}
+		mGlsl->uniform("cameraParam", glm::vec4(
+			camera.ar.intrinsics[0][2],
+			camera.ar.intrinsics[1][2],
+			camera.ar.intrinsics[0][0],
+			camera.ar.intrinsics[1][1]
+		));
 	}
 	void draw() override {
 		gl::clear( Color::gray( 0.1f ) );
@@ -166,11 +166,24 @@ public:
 		gl::ScopedTextureBind tex2(mConfidenceTex, 2);
 		gl::ScopedGlslProg scpGlsl(mGlsl);
 
-		time += 0.06;
-		mCam.lookAt( vec3( sin(time) * 100.0, 20.0, cos(time) * 100.0 ), vec3( 0 ) );
-		gl::setMatrices(mCam);
+		time += 0.02;
+		const double distance = 50.0;
+		gl::setMatrices(mCamera);
 
+		gl::pointSize(3.0);
 		vert->draw();
+	}
+	void mouseUp(MouseEvent event) override {
+		mCamUi.mouseUp( event );
+	}
+	void mouseDown(MouseEvent event) override {
+		mCamUi.mouseDown( event );
+	}
+	void mouseWheel(MouseEvent event) override {
+		mCamUi.mouseWheel( event );
+	}
+	void mouseDrag(MouseEvent event) override {
+		mCamUi.mouseDrag( event );
 	}
 };
 

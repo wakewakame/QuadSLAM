@@ -3,7 +3,9 @@ set -e
 
 #TARGET="quadslam"
 TARGET="example_cinder_pointcloud"
-ARG="$HOME/Downloads/QuadVideos/2021-06-14_08-06-54"
+#TARGET="example_cinder_preview"
+ARG="$HOME/Downloads/QuadVideos/2021-06-14_09-00-38"
+#ARG="$HOME/Downloads/QuadVideos/2021-06-14_08-06-54"
 BUILD_TYPE="Debug"
 
 mkdir -p build
