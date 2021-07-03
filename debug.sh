@@ -2,7 +2,7 @@
 set -e
 
 #TARGET="quadslam"
-TARGET="example_cinder_preview"
+TARGET="example_cinder_pointcloud"
 ARG="$HOME/Downloads/QuadVideos/2021-06-14_08-06-54"
 BUILD_TYPE="Debug"
 
