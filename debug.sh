@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-TARGET="quadslam"
+#TARGET="quadslam"
+TARGET="example_cinder_preview"
 ARG="$HOME/Downloads/QuadVideos/2021-06-14_08-06-54"
 BUILD_TYPE="Debug"
 
@@ -12,6 +13,11 @@ cp ./compile_commands.json ../
 clear
 make -j6
 clear
+
+# 例外発生時にcoreファイルをダンプするようにする
+# coreファイルは`gdb <実行ファイルのパス> <coreのパス>`で例外発生時の状況を確認できる
+ulimit -c unlimited
+
 if [ "$(uname)" == "Linux" ]; then
 	./$BUILD_TYPE/$TARGET/$TARGET $ARG
 elif [ "$(uname)" == "Darwin" ]; then
