@@ -11,7 +11,7 @@
 using namespace ci;
 using namespace ci::app;
 
-class BasicApp : public App {
+class PreviewApp : public App {
 private:
 	qs::QuadLoader loader;
 	gl::GlslProgRef mGlsl;
@@ -23,6 +23,8 @@ private:
 
 	CameraPersp			mCamera;
 	CameraUi			mCamUi;
+
+	bool play = false;
 
 public:
 	void setup() override {
@@ -73,7 +75,7 @@ public:
 				float yrw = (pos.y - cameraParam.y) * depth / cameraParam.w;
 				vec4 xyzw = vec4(xrw, yrw, -depth, 1.0);
 
-				alpha = (confidence == 0) ? 0.0 : 1.0;
+				alpha = (confidence == 0) ? 0.2 : 1.0;
 				alpha = 1.0;
 				gl_Position	= ciModelViewProjection * xyzw;
 			}
@@ -97,18 +99,41 @@ public:
 		gl::enableDepthWrite();
 		gl::enableDepthRead();
 
-		vert = gl::VertBatch::create( GL_POINTS );
-		for(int y = 0; y < 192; y++) {
-			for(int x = 0; x < 256; x++) {
-				vert->texCoord( (double)x / 255.0, 1.0 - (double)y / 191.0 );
-				vert->vertex( 1920.0 * (double)x / 255.0, 1440.0 * (double)y / 191.0 );
+		vert = gl::VertBatch::create( GL_TRIANGLES );
+		for(int y = 0; y < 192 - 1; y++) {
+			for(int x = 0; x < 256 - 1; x++) {
+				vert->texCoord( (double)(x + 0) / 255.0, 1.0 - (double)(y + 0) / 191.0 );
+				vert->vertex( 1920.0 * (double)(x + 0) / 255.0, 1440.0 * (double)(y + 0) / 191.0 );
+
+				vert->texCoord( (double)(x + 1) / 255.0, 1.0 - (double)(y + 0) / 191.0 );
+				vert->vertex( 1920.0 * (double)(x + 1) / 255.0, 1440.0 * (double)(y + 0) / 191.0 );
+
+				vert->texCoord( (double)(x + 0) / 255.0, 1.0 - (double)(y + 1) / 191.0 );
+				vert->vertex( 1920.0 * (double)(x + 0) / 255.0, 1440.0 * (double)(y + 1) / 191.0 );
+
+				vert->texCoord( (double)(x + 1) / 255.0, 1.0 - (double)(y + 0) / 191.0 );
+				vert->vertex( 1920.0 * (double)(x + 1) / 255.0, 1440.0 * (double)(y + 0) / 191.0 );
+
+				vert->texCoord( (double)(x + 1) / 255.0, 1.0 - (double)(y + 1) / 191.0 );
+				vert->vertex( 1920.0 * (double)(x + 1) / 255.0, 1440.0 * (double)(y + 1) / 191.0 );
+
+				vert->texCoord( (double)(x + 0) / 255.0, 1.0 - (double)(y + 1) / 191.0 );
+				vert->vertex( 1920.0 * (double)(x + 0) / 255.0, 1440.0 * (double)(y + 1) / 191.0 );
 			}
 		}
 
 		mCamera.lookAt( normalize( vec3( 3, 3, 6 ) ) * 5.0f, vec3(0.0) );
 		mCamUi = CameraUi( &mCamera );
+
+		updateCamera();
+
+		setWindowSize(1280, 720);
+
+		mCamera.lookAt(vec3(0, 0, 0), vec3(0, 0, -1));
 	}
-	void update() override {
+	void update() override { if (play) updateCamera(); }
+	void keyDown(KeyEvent _) override { play = !play; }
+	void updateCamera() {
 		auto quad = loader.next();
 		if (!quad.has_value()) {
 			quit();
@@ -160,15 +185,19 @@ public:
 		gl::clear( Color::gray( 0.1f ) );
 		gl::color( 1.0f, 0.5f, 0.25f );
 
+		if (!mColorTex || !mDepthTex || !mConfidenceTex) return;
+
 		//gl::ScopedFaceCulling cull(true, GL_BACK);
 		gl::ScopedTextureBind tex0(mColorTex, 0);
 		gl::ScopedTextureBind tex1(mDepthTex, 1);
 		gl::ScopedTextureBind tex2(mConfidenceTex, 2);
 		gl::ScopedGlslProg scpGlsl(mGlsl);
 
+		mCamera.setAspectRatio(getWindowAspectRatio());
+		gl::setMatrices(mCamera);
+
 		time += 0.02;
 		const double distance = 50.0;
-		gl::setMatrices(mCamera);
 
 		gl::pointSize(3.0);
 		vert->draw();
@@ -187,4 +216,4 @@ public:
 	}
 };
 
-CINDER_APP( BasicApp, RendererGl )
+CINDER_APP( PreviewApp, RendererGl )
