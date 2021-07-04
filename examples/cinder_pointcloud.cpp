@@ -11,25 +11,256 @@
 using namespace ci;
 using namespace ci::app;
 
-class PreviewApp : public App {
+class PointCloud {
+public:
+	enum class DrawType { POINT, LINE, MESH };
+
 private:
-	qs::QuadLoader loader;
 	gl::GlslProgRef mGlsl;
+	gl::BatchRef mMesh;
 	gl::Texture2dRef mColorTex;
 	gl::Texture2dRef mDepthTex;
 	gl::Texture2dRef mConfidenceTex;
-	TriMesh mMesh;
-	double time = 0.0;
+	const DrawType mType;
+	const int mDepthRough, mColorRough;
+	bool mNoTextureMode = false;
+
+public:
+	PointCloud(DrawType type = DrawType::MESH, int depthRough = 0, int colorRough = 0, float invisibleEdgeCoefficient = 0.1)
+		: mType(type), mDepthRough(std::max(depthRough + 1, 1)), mColorRough(std::max(colorRough + 1, 1))
+	{
+		std::string drawType =
+			mType == DrawType::MESH ? "triangle_strip" :
+			mType == DrawType::LINE ? "line_strip"     :
+			                          "points"         ;
+
+		mGlsl = gl::GlslProg::create(gl::GlslProg::Format()
+			.vertex(R"(
+				#version 150
+
+				in vec2 ciTexCoord0;
+				out VertexData {
+					vec2 uv;
+					float confidence;
+				} vOut;
+
+				uniform vec4 cameraParam;
+				uniform sampler2D depthTex;
+				uniform sampler2D confidenceTex;
+				uniform vec2 colorResolution;
+				uniform vec2 depthUvScale;
+				
+				void main(void) {
+					vec2 normalizePos = vec2(ciTexCoord0.x, 1.0 - ciTexCoord0.y);
+					vec2 colorPos = normalizePos * colorResolution;
+					vOut.uv = ciTexCoord0;
+					float depth = texture(depthTex, vOut.uv * depthUvScale).r;
+					vOut.confidence = texture(confidenceTex, vOut.uv * depthUvScale).r * 255.0;
+
+					gl_Position = vec4(
+						(colorPos.x - cameraParam.x) * depth / cameraParam.z,
+						(colorPos.y - cameraParam.y) * depth / cameraParam.w,
+						-depth,
+						1.0
+					);
+				}
+			)")
+			.geometry(R"(
+				#version 150
+
+				layout (triangles) in;
+				layout ()" + drawType + R"(, max_vertices = 3) out;
+
+				in VertexData {
+					vec2 uv;
+					float confidence;
+				} vIn[];
+
+				out VertexData {
+					vec2 uv;
+					float confidence;
+					float light;
+				} vOut;
+
+				uniform mat4 ciModelViewInverse;
+				uniform mat4 ciModelViewProjection;
+
+				void main()
+				{
+					vec3 p1 = gl_in[0].gl_Position.xyz;
+					vec3 p2 = gl_in[1].gl_Position.xyz;
+					vec3 p3 = gl_in[2].gl_Position.xyz;
+					vec3 v1 = p2 - p1;
+					vec3 v2 = p3 - p1;
+					float depth_avg = abs(p1.z + p2.z + p3.z) / 3.0;
+
+					// カメラに対する勾配が急な面を描画しないようにする (depthが近いほど判定を厳しくする)
+					if (max(length(v1), length(v2)) > depth_avg * )" + std::to_string(invisibleEdgeCoefficient) + R"() return;
+
+					// 法線ベクトルとライティングの計算
+					vec3 normal = normalize(cross(v1, v2));
+					vec3 lightDirection = vec3(0.0, 0.0, 1.0);
+					lightDirection = normalize(ciModelViewInverse * vec4(lightDirection, 0.0)).xyz;
+					float light = abs(dot(normal, lightDirection));
+
+					vOut.uv = vIn[0].uv;
+					vOut.confidence = vIn[0].confidence;
+					vOut.light = light;
+					gl_Position = ciModelViewProjection * gl_in[0].gl_Position;
+					EmitVertex();
+
+					vOut.uv = vIn[1].uv;
+					vOut.confidence = vIn[1].confidence;
+					vOut.light = light;
+					gl_Position = ciModelViewProjection * gl_in[1].gl_Position;
+					EmitVertex();
+
+					vOut.uv = vIn[2].uv;
+					vOut.confidence = vIn[2].confidence;
+					vOut.light = light;
+					gl_Position = ciModelViewProjection * gl_in[2].gl_Position;
+					EmitVertex();
+
+					EndPrimitive();
+				}
+			)")
+			.fragment(R"(
+				#version 150
+
+				in VertexData {
+					vec2 uv;
+					float confidence;
+					float light;
+				} vIn;
+				out vec4 oColor;
+
+				uniform sampler2D colorTex;
+				uniform vec2 colorUvScale;
+				uniform float alpha;
+				uniform bool noTextureMode;
+
+				uniform vec4 confidence0ColorMask;
+				uniform vec4 confidence1ColorMask;
+				uniform vec4 confidence2ColorMask;
+
+				void main(void) {
+					vec4 mask =
+						vIn.confidence < 0.5 ? confidence0ColorMask :
+						vIn.confidence < 1.5 ? confidence1ColorMask :
+						                       confidence2ColorMask ;
+					vec3 color =
+						noTextureMode ? vec3(0.98,0.176,0.463) * vIn.light + vec3(0.494,0.235,0.812) * (1.0 - vIn.light) :
+						                texture(colorTex, vIn.uv * colorUvScale).rgb;
+
+					oColor = vec4(color, alpha) * mask;
+				}
+			)")
+		);
+
+		mGlsl->uniform("alpha"        , 1.0f);
+		mGlsl->uniform("noTextureMode", mNoTextureMode);
+		mGlsl->uniform("colorTex"     , 0);
+		mGlsl->uniform("depthTex"     , 1);
+		mGlsl->uniform("confidenceTex", 2);
+		mGlsl->uniform("confidence0ColorMask", vec4(1.0));
+		mGlsl->uniform("confidence1ColorMask", vec4(1.0));
+		mGlsl->uniform("confidence2ColorMask", vec4(1.0));
+	}
+
+	void update(const qs::Camera& camera) {
+		// カラー、デプス、信頼度の画像を取得
+		cv::Mat color = camera.color, depth = camera.depth, confidence = camera.confidence;
+
+		// カメラの内部パラメータの値を取得
+		const float (&intrinsics)[3][3] = camera.ar.intrinsics;
+		vec4 cameraParam(intrinsics[0][2], intrinsics[1][2], intrinsics[0][0], intrinsics[1][1]);
+
+		// 点群の省略度が設定されている場合はそれに合わせてデプスと信頼度を縮小
+		if (mDepthRough > 1) {
+			cv::Size2i depthResolution(
+				std::max(depth.cols / mDepthRough, 1),
+				std::max(depth.rows / mDepthRough, 1)
+			);
+			cv::resize(depth     , depth     , depthResolution);
+			cv::resize(confidence, confidence, depthResolution);
+		}
+
+		// 点群を点で描画する場合、カラーのテクスチャはデプス以上の解像度を必要としないので縮小する
+		if (DrawType::POINT == mType) {
+			vec2 rescale((float)depth.cols / (float)color.cols, (float)depth.rows / (float)color.rows);
+			cameraParam *= vec4(rescale, rescale);
+			cv::resize(color, color, depth.size());
+		}
+		// テクスチャの省略度が設定されている場合はそれに合わせてカラーを縮小
+		else if (mColorRough > 1) {
+			cv::Size2i colorResolution(
+				std::max(color.cols / mColorRough, 1),
+				std::max(color.rows / mColorRough, 1)
+			);
+			vec2 rescale((float)colorResolution.width / (float)color.cols, (float)colorResolution.height / (float)color.rows);
+			cameraParam *= vec4(rescale, rescale);
+			cv::resize(color, color, colorResolution);
+		}
+
+		// カメラ内部パラメータをシェーダに送る
+		mGlsl->uniform("cameraParam", cameraParam);
+
+		// テクスチャが未作成の場合は作成
+		if (!mColorTex || !mDepthTex || !mConfidenceTex || !mMesh) {
+			mColorTex      = gl::Texture2d::create(color.cols     , color.rows     , gl::Texture2d::Format().internalFormat(GL_SRGB8).dataType(GL_UNSIGNED_BYTE));
+			mDepthTex      = gl::Texture2d::create(depth.cols     , depth.rows     , gl::Texture2d::Format().internalFormat(GL_R32F ).dataType(GL_FLOAT        ));
+			mConfidenceTex = gl::Texture2d::create(confidence.cols, confidence.rows, gl::Texture2d::Format().internalFormat(GL_R8   ).dataType(GL_UNSIGNED_BYTE));
+			mGlsl->uniform("colorResolution", vec2((float)mColorTex->getActualWidth(), (float)mColorTex->getActualHeight()));
+			mGlsl->uniform("colorUvScale", vec2(
+				(float)mColorTex->getActualWidth()  / (float)(color.cols),
+				(float)mColorTex->getActualHeight() / (float)(color.rows)
+			));
+			mGlsl->uniform("depthUvScale", vec2(
+				(float)mDepthTex->getActualWidth()  / (float)(depth.cols),
+				(float)mDepthTex->getActualHeight() / (float)(depth.rows)
+			));
+			ivec2 subdivisions = mDepthTex->getSize() - ivec2(1);
+			mMesh = gl::Batch::create(geom::Plane().subdivisions(subdivisions), mGlsl);
+		}
+
+		// テクスチャの更新
+		mColorTex     ->update(color.data     , GL_BGR, GL_UNSIGNED_BYTE, 0, color.cols     , color.rows     );
+		mDepthTex     ->update(depth.data     , GL_RED, GL_FLOAT        , 0, depth.cols     , depth.rows     );
+		mConfidenceTex->update(confidence.data, GL_RED, GL_UNSIGNED_BYTE, 0, confidence.cols, confidence.rows);
+	}
+
+	void draw() {
+		if (!mColorTex || !mDepthTex || !mConfidenceTex || !mMesh) return;
+		gl::ScopedTextureBind tex0(mColorTex     , 0);
+		gl::ScopedTextureBind tex1(mDepthTex     , 1);
+		gl::ScopedTextureBind tex2(mConfidenceTex, 2);
+		mMesh->draw();
+	}
+
+	void setNoTextureMode(bool value) { mNoTextureMode = value; mGlsl->uniform("noTextureMode", mNoTextureMode); }
+	bool getNoTextureMode() const     { return mNoTextureMode; }
+
+	void setAlpha(float alpha) { mGlsl->uniform("alpha", alpha); }
+	void setConfidenceColorMask(vec4 c0ColorMask, vec4 c1ColorMask, vec4 c2ColorMask) {
+		mGlsl->uniform("confidence0ColorMask", c0ColorMask);
+		mGlsl->uniform("confidence1ColorMask", c1ColorMask);
+		mGlsl->uniform("confidence2ColorMask", c2ColorMask);
+	}
+};
+
+class PreviewApp : public App {
+private:
+	qs::QuadLoader mLoader;
+	PointCloud mPoints{};
+
+	bool mPlay = false;
 
 	CameraPersp			mCamera;
 	CameraUi			mCamUi;
 
-	bool play = false;
-	bool diffuse = false;
-
 public:
 	void setup() override {
-		// Initialize QuadLoader ====================================================
+		// QuadLoaderの初期化
 		std::vector<std::string> args = getCommandLineArgs();
 		if (2 != args.size()) {
 			std::cout
@@ -44,240 +275,87 @@ public:
 		}
 
 		std::string recDirPath = args.at(1);
-		loader.open(recDirPath);
-		if (!loader.isOpened()) {
+		mLoader.open(recDirPath);
+		if (!mLoader.isOpened()) {
 			std::cout << "failed to open forder" << std::endl;
 			quit();
 			return;
 		}
 
-		// Initialize Cinder ========================================================
-		mGlsl = gl::GlslProg::create( gl::GlslProg::Format()
-		.vertex(CI_GLSL(150,
-			in vec4 ciPosition;
-			out VertexData {
-				vec2 uv;
-				float confidence;
-			} vOut;
-
-			uniform vec4 cameraParam;
-			uniform sampler2D depthTex;
-			uniform sampler2D confidenceTex;
-			uniform vec2 colorResolution;
-			uniform vec2 depthUvScale;
-			
-			void main(void) {
-				vec2 colorPos = ciPosition.xy * colorResolution;
-				vOut.uv = vec2(ciPosition.x, 1.0 - ciPosition.y);
-				float depth = texture(depthTex, vOut.uv * depthUvScale).r;
-				vOut.confidence = texture(confidenceTex, vOut.uv * depthUvScale).r * 255.0;
-
-				gl_Position = vec4(
-					(colorPos.x - cameraParam.x) * depth / cameraParam.z,
-					(colorPos.y - cameraParam.y) * depth / cameraParam.w,
-					-depth,
-					1.0
-				);
-			}
-		 ))
-		.geometry(CI_GLSL(150,
-			layout (triangles) in;
-			layout (triangle_strip, max_vertices = 3) out;
-
-			in VertexData {
-				vec2 uv;
-				float confidence;
-			} vIn[];
-
-			out VertexData {
-				vec2 uv;
-				float confidence;
-				float light;
-			} vOut;
-
-			uniform mat4 ciModelViewInverse;
-			uniform mat4 ciModelViewProjection;
-
-			void main()
-			{
-				vec3 p1 = gl_in[0].gl_Position.xyz;
-				vec3 p2 = gl_in[1].gl_Position.xyz;
-				vec3 p3 = gl_in[2].gl_Position.xyz;
-				vec3 v1 = p2 - p1;
-				vec3 v2 = p3 - p1;
-				float depth_avg = abs(p1.z + p2.z + p3.z) / 3.0;
-
-				// カメラに対する勾配が急な面を描画しないようにする (depthが近いほど判定を厳しくする)
-				if (max(length(v1), length(v2)) > depth_avg * 0.1) return;
-
-				// 法線ベクトルとライティングの計算
-				vec3 normal = normalize(cross(v1, v2));
-				vec3 lightDirection = vec3(0.0, 0.0, 1.0);
-				lightDirection = normalize(ciModelViewInverse * vec4(lightDirection, 0.0)).xyz;
-				float light = abs(dot(normal, lightDirection));
-
-				vOut.uv = vIn[0].uv;
-				vOut.confidence = vIn[0].confidence;
-				vOut.light = light;
-				gl_Position = ciModelViewProjection * gl_in[0].gl_Position;
-				EmitVertex();
-
-				vOut.uv = vIn[1].uv;
-				vOut.confidence = vIn[1].confidence;
-				vOut.light = light;
-				gl_Position = ciModelViewProjection * gl_in[1].gl_Position;
-				EmitVertex();
-
-				vOut.uv = vIn[2].uv;
-				vOut.confidence = vIn[2].confidence;
-				vOut.light = light;
-				gl_Position = ciModelViewProjection * gl_in[2].gl_Position;
-				EmitVertex();
-
-				EndPrimitive();
-			}
-		))
-		.fragment(CI_GLSL(150,
-			in VertexData {
-				vec2 uv;
-				float confidence;
-				float light;
-			} vIn;
-			out vec4 oColor;
-
-			uniform sampler2D colorTex;
-			uniform vec2 colorUvScale;
-			uniform bool mode;
-
-			void main(void) {
-				vec3 color = texture(colorTex, vIn.uv * colorUvScale).rgb;
-				if (mode) { color = vec3(0.98,0.176,0.463) * vIn.light + vec3(0.494,0.235,0.812) * (1.0 - vIn.light); }
-				oColor = vec4(color, 1.0);
-			}
-		)));
-		
+		// Cinderの初期化
 		gl::enableDepthWrite();
 		gl::enableDepthRead();
 
-		mMesh = TriMesh(TriMesh::Format().positions(2));
-		for(uint32_t y = 0; y < 192; y++) { for(uint32_t x = 0; x < 256; x++) {
-			mMesh.appendPosition(vec2((double)(x + 0) / 255.0, (double)(y + 0) / 191.0));
-		}}
-		for(uint32_t y = 0; y < 192 - 1; y++) { for(uint32_t x = 0; x < 256 - 1; x++) {
-			uint32_t p1 = (y + 0) * 256 + x;
-			uint32_t p2 = (y + 1) * 256 + x;
-			uint32_t p3 = p2 + 1;
-			uint32_t p4 = p1 + 1;
-			mMesh.appendTriangle(p3, p2, p1);
-			mMesh.appendTriangle(p1, p4, p3);
-		}}
-
-		mCamera.lookAt( normalize( vec3( 3, 3, 6 ) ) * 5.0f, vec3(0.0) );
-		mCamUi = CameraUi( &mCamera );
-
-		updateCamera();
-
 		setWindowSize(1280, 720);
-
 		mCamera.lookAt(vec3(0), vec3(0, 0, -1));
+		mCamUi = CameraUi(&mCamera);
 
-		mGlsl->uniform("mode", false);
+		updatePoints();
 	}
-	void update() override { if (play) updateCamera(); }
+
+	void updatePoints() {
+		// 次のフレームを取得
+		auto quad = mLoader.next();
+		if (!quad.has_value()) { quit(); return; }
+		qs::QuadFrame& quadFrame = quad.value();
+		qs::Camera camera = quadFrame.camera;
+		if (camera.color.empty() || camera.depth.empty() || camera.confidence.empty()) { return; }
+
+		// 点群の更新
+		mPoints.update(camera);
+	}
+
+	void update() override { if (mPlay) updatePoints(); }
+
+	void draw() override {
+		// カメラのアスペクト比を更新
+		mCamera.setAspectRatio(getWindowAspectRatio());
+
+		// カメラのMVP行列をOpenGLに適応
+		gl::setMatrices(mCamera);
+
+		// 背景色の設定
+		gl::clear(Color::gray(0.1f));
+
+		// ポリゴンのウラ面を非表示
+		gl::ScopedFaceCulling cull(true, GL_BACK);
+
+		// 点群の描画
+		mPoints.draw();
+	}
+
+	// マウスイベント
+	void mouseUp(MouseEvent event) override { mCamUi.mouseUp(event); }
+	void mouseDown(MouseEvent event) override { mCamUi.mouseDown(event); }
+	void mouseWheel(MouseEvent event) override { mCamUi.mouseWheel(event); }
+	void mouseDrag(MouseEvent event) override { mCamUi.mouseDrag(event); }
+
+	// キーイベント
 	void keyDown(KeyEvent e) override {
 		switch(e.getCode()) {
+
+		// スペースキーで再生/一時停止の切り替え
 		case KeyEvent::KEY_SPACE:
-			play = !play;
+			mPlay = !mPlay;
 			break;
+
+		// Aキーでテキスチャの有無を切り替え
 		case KeyEvent::KEY_a:
-			mGlsl->uniform("mode", diffuse = !diffuse);
+			mPoints.setNoTextureMode(!mPoints.getNoTextureMode());
 			break;
+
+		// Rキーでカメラをリセット
 		case KeyEvent::KEY_r:
 			mCamera.lookAt(vec3(0), vec3(0, 0, -1));
 			break;
-		}
-	}
-	void updateCamera() {
-		auto quad = loader.next();
-		if (!quad.has_value()) {
+
+		// QキーまたはESCでカメラをリセット
+		case KeyEvent::KEY_ESCAPE:
+		case KeyEvent::KEY_q:
 			quit();
-			return;
+			break;
+
 		}
-		qs::QuadFrame& quadFrame = quad.value();
-		qs::Camera camera = quadFrame.camera;
-
-		if (camera.color.empty() || camera.depth.empty() || camera.confidence.empty()) {
-			return;
-		}
-
-		if (!mColorTex) {
-			mColorTex = gl::Texture2d::create(camera.color.cols, camera.color.rows, gl::Texture2d::Format().internalFormat(GL_SRGB8).dataType(GL_UNSIGNED_BYTE));
-			mColorTex->bind(0);
-			mGlsl->uniform("colorTex", 0);
-		}
-		if (!mDepthTex) {
-			mDepthTex = gl::Texture2d::create(camera.depth.cols, camera.depth.rows, gl::Texture2d::Format().internalFormat(GL_R32F).dataType(GL_FLOAT));
-			mDepthTex->bind(1);
-			mGlsl->uniform("depthTex", 1);
-		}
-		if (!mConfidenceTex) {
-			mConfidenceTex = gl::Texture2d::create(camera.confidence.cols, camera.confidence.rows, gl::Texture2d::Format().internalFormat(GL_R8).dataType(GL_UNSIGNED_BYTE));
-			mConfidenceTex->bind(2);
-			mGlsl->uniform("confidenceTex", 2);
-		}
-
-		mColorTex->update(camera.color.data, GL_BGR, GL_UNSIGNED_BYTE, 0, camera.color.cols, camera.color.rows);
-		mDepthTex->update(camera.depth.data, GL_RED, GL_FLOAT, 0, camera.depth.cols, camera.depth.rows);
-		mConfidenceTex->update(camera.confidence.data, GL_RED, GL_UNSIGNED_BYTE, 0, camera.confidence.cols, camera.confidence.rows);
-
-		mGlsl->uniform("colorResolution", glm::vec2((float)mColorTex->getActualWidth(), (float)mColorTex->getActualHeight()));
-		mGlsl->uniform("colorUvScale", glm::vec2(
-			(float)mColorTex->getActualWidth()  / (float)(camera.color.cols),
-			(float)mColorTex->getActualHeight() / (float)(camera.color.rows)
-		));
-		mGlsl->uniform("depthUvScale", glm::vec2(
-			(float)mDepthTex->getActualWidth()  / (float)(camera.depth.cols),
-			(float)mDepthTex->getActualHeight() / (float)(camera.depth.rows)
-		));
-		mGlsl->uniform("cameraParam", glm::vec4(
-			camera.ar.intrinsics[0][2],
-			camera.ar.intrinsics[1][2],
-			camera.ar.intrinsics[0][0],
-			camera.ar.intrinsics[1][1]
-		));
-	}
-	void draw() override {
-		gl::clear( Color::gray( 0.1f ) );
-		gl::color( 1.0f, 0.5f, 0.25f );
-
-		if (!mColorTex || !mDepthTex || !mConfidenceTex) return;
-
-		gl::ScopedFaceCulling cull(true, GL_BACK);
-		gl::ScopedTextureBind tex0(mColorTex, 0);
-		gl::ScopedTextureBind tex1(mDepthTex, 1);
-		gl::ScopedTextureBind tex2(mConfidenceTex, 2);
-		gl::ScopedGlslProg scpGlsl(mGlsl);
-
-		mCamera.setAspectRatio(getWindowAspectRatio());
-		gl::setMatrices(mCamera);
-
-		time += 0.02;
-		const double distance = 50.0;
-
-		gl::pointSize(3.0);
-		gl::draw(mMesh);
-	}
-	void mouseUp(MouseEvent event) override {
-		mCamUi.mouseUp( event );
-	}
-	void mouseDown(MouseEvent event) override {
-		mCamUi.mouseDown( event );
-	}
-	void mouseWheel(MouseEvent event) override {
-		mCamUi.mouseWheel( event );
-	}
-	void mouseDrag(MouseEvent event) override {
-		mCamUi.mouseDrag( event );
 	}
 };
 
