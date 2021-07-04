@@ -18,13 +18,14 @@ private:
 	gl::Texture2dRef mColorTex;
 	gl::Texture2dRef mDepthTex;
 	gl::Texture2dRef mConfidenceTex;
-	gl::VertBatchRef vert;
+	TriMesh mMesh;
 	double time = 0.0;
 
 	CameraPersp			mCamera;
 	CameraUi			mCamUi;
 
 	bool play = false;
+	bool diffuse = false;
 
 public:
 	void setup() override {
@@ -53,11 +54,12 @@ public:
 		// Initialize Cinder ========================================================
 		mGlsl = gl::GlslProg::create( gl::GlslProg::Format()
 		.vertex(CI_GLSL(150,
-			uniform mat4 ciModelViewProjection;
 			in vec4 ciPosition;
 			in vec2 ciTexCoord0;
-			out float alpha;
-			out vec2 uv;
+			out VertexData {
+				vec2 uv;
+				float alpha;
+			} vVertexOut;
 
 			uniform sampler2D uDepthTex;
 			uniform sampler2D uConfidenceTex;
@@ -65,62 +67,117 @@ public:
 			uniform vec4 cameraParam;
 			
 			void main(void) {
-				uv = ciTexCoord0;
+				vVertexOut.uv = ciTexCoord0;
 				vec4 pos = ciPosition;
-				float depth = texture(uDepthTex, uv * depthUvScale).r;
-				int confidence = int(texture(uConfidenceTex, uv * depthUvScale).r * 255.0);
+				float depth = texture(uDepthTex, vVertexOut.uv * depthUvScale).r;
+				int confidence = int(texture(uConfidenceTex, vVertexOut.uv * depthUvScale).r * 255.0);
 
 				// Calculate the vertex's world coordinates.
 				float xrw = (pos.x - cameraParam.x) * depth / cameraParam.z;
 				float yrw = (pos.y - cameraParam.y) * depth / cameraParam.w;
 				vec4 xyzw = vec4(xrw, yrw, -depth, 1.0);
 
-				alpha = (confidence == 0) ? 0.2 : 1.0;
-				alpha = 1.0;
-				gl_Position	= ciModelViewProjection * xyzw;
+				vVertexOut.alpha = (confidence == 0) ? 0.2 : 1.0;
+				vVertexOut.alpha = 1.0;
+				gl_Position	= xyzw;
 			}
 		 ))
+		.geometry(CI_GLSL(150,
+			layout (triangles) in;
+			layout (triangle_strip, max_vertices = 3) out;
+
+			uniform mat4 ciModelViewInverse;
+			uniform mat4 ciModelViewProjection;
+
+			in VertexData {
+				vec2 uv;
+				float alpha;
+			} vVertexIn[];
+
+			out VertexData {
+				vec2 uv;
+				float alpha;
+				float diffuse;
+			} vVertexOut;
+
+			void main()
+			{
+				vec3 p1 = gl_in[0].gl_Position.xyz;
+				vec3 p2 = gl_in[1].gl_Position.xyz;
+				vec3 p3 = gl_in[2].gl_Position.xyz;
+				vec3 v1 = p2 - p1;
+				vec3 v2 = p3 - p1;
+				float depth_avg = abs(p1.z + p2.z + p3.z) / 3.0;
+
+				// 勾配が急な面を描画しないようにする (depthが近いほど判定を厳しくする)
+				if (max(length(v1), length(v2)) > depth_avg * 0.1) return;
+
+				// 法線ベクトルとライティングの計算
+				vec3 normal = normalize(cross(v1, v2));
+				vec3 lightDirection = vec3(0.0, 0.0, 1.0);
+				lightDirection = normalize(ciModelViewInverse * vec4(lightDirection, 0.0)).xyz;
+				float diffuse = abs(dot(normal, lightDirection));
+
+				vVertexOut.uv = vVertexIn[0].uv;
+				vVertexOut.alpha = vVertexIn[0].alpha;
+				vVertexOut.diffuse = diffuse;
+				gl_Position = ciModelViewProjection * gl_in[0].gl_Position;
+				EmitVertex();
+
+				vVertexOut.uv = vVertexIn[1].uv;
+				vVertexOut.alpha = vVertexIn[1].alpha;
+				vVertexOut.diffuse = diffuse;
+				gl_Position = ciModelViewProjection * gl_in[1].gl_Position;
+				EmitVertex();
+
+				vVertexOut.uv = vVertexIn[2].uv;
+				vVertexOut.alpha = vVertexIn[2].alpha;
+				vVertexOut.diffuse = diffuse;
+				gl_Position = ciModelViewProjection * gl_in[2].gl_Position;
+				EmitVertex();
+
+				EndPrimitive();
+			}
+		))
 		.fragment(CI_GLSL(150,
-			in vec2 uv;
-			in float alpha;
+			in VertexData {
+				vec2 uv;
+				float alpha;
+				float diffuse;
+			} vVertexIn;
 			out vec4 oColor;
 			uniform sampler2D uColorTex;
 			uniform sampler2D uDepthTex;
 			uniform sampler2D uConfidenceTex;
 			uniform vec2 colorUvScale;
 			uniform vec2 depthUvScale;
+			uniform bool mode;
 
 			void main(void) {
-				vec3 color = texture(uColorTex, uv * colorUvScale).rgb;
-				oColor = vec4(color, alpha);
+				float diffuse = vVertexIn.diffuse;
+
+				vec3 color = texture(uColorTex, vVertexIn.uv * colorUvScale).rgb;
+				if (mode) { color = vec3(0.98,0.176,0.463) * diffuse + vec3(0.494,0.235,0.812) * (1.0 - diffuse); }
+				oColor = vec4(color, vVertexIn.alpha);
 			}
 		)));
 		
 		gl::enableDepthWrite();
 		gl::enableDepthRead();
 
-		vert = gl::VertBatch::create( GL_TRIANGLES );
-		for(int y = 0; y < 192 - 1; y++) {
-			for(int x = 0; x < 256 - 1; x++) {
-				vert->texCoord( (double)(x + 0) / 255.0, 1.0 - (double)(y + 0) / 191.0 );
-				vert->vertex( 1920.0 * (double)(x + 0) / 255.0, 1440.0 * (double)(y + 0) / 191.0 );
-
-				vert->texCoord( (double)(x + 1) / 255.0, 1.0 - (double)(y + 0) / 191.0 );
-				vert->vertex( 1920.0 * (double)(x + 1) / 255.0, 1440.0 * (double)(y + 0) / 191.0 );
-
-				vert->texCoord( (double)(x + 0) / 255.0, 1.0 - (double)(y + 1) / 191.0 );
-				vert->vertex( 1920.0 * (double)(x + 0) / 255.0, 1440.0 * (double)(y + 1) / 191.0 );
-
-				vert->texCoord( (double)(x + 1) / 255.0, 1.0 - (double)(y + 0) / 191.0 );
-				vert->vertex( 1920.0 * (double)(x + 1) / 255.0, 1440.0 * (double)(y + 0) / 191.0 );
-
-				vert->texCoord( (double)(x + 1) / 255.0, 1.0 - (double)(y + 1) / 191.0 );
-				vert->vertex( 1920.0 * (double)(x + 1) / 255.0, 1440.0 * (double)(y + 1) / 191.0 );
-
-				vert->texCoord( (double)(x + 0) / 255.0, 1.0 - (double)(y + 1) / 191.0 );
-				vert->vertex( 1920.0 * (double)(x + 0) / 255.0, 1440.0 * (double)(y + 1) / 191.0 );
-			}
-		}
+		mMesh = TriMesh(TriMesh::Format().positions(2).texCoords0(2));
+		for(uint32_t y = 0; y < 192; y++) { for(uint32_t x = 0; x < 256; x++) {
+			mMesh.appendTexCoord0(vec2((double)(x + 0) / 255.0, 1.0 - (double)(y + 0) / 191.0));
+			mMesh.appendPosition(vec2(1920.0 * (double)(x + 0) / 255.0, 1440.0 * (double)(y + 0) / 191.0));
+		}}
+		for(uint32_t y = 0; y < 192 - 1; y++) { for(uint32_t x = 0; x < 256 - 1; x++) {
+			uint32_t p1 = (y + 0) * 256 + x;
+			uint32_t p2 = (y + 1) * 256 + x;
+			uint32_t p3 = p2 + 1;
+			uint32_t p4 = p1 + 1;
+			mMesh.appendTriangle(p3, p2, p1);
+			mMesh.appendTriangle(p1, p4, p3);
+		}}
 
 		mCamera.lookAt( normalize( vec3( 3, 3, 6 ) ) * 5.0f, vec3(0.0) );
 		mCamUi = CameraUi( &mCamera );
@@ -129,10 +186,24 @@ public:
 
 		setWindowSize(1280, 720);
 
-		mCamera.lookAt(vec3(0, 0, 0), vec3(0, 0, -1));
+		mCamera.lookAt(vec3(0), vec3(0, 0, -1));
+
+		mGlsl->uniform("mode", false);
 	}
 	void update() override { if (play) updateCamera(); }
-	void keyDown(KeyEvent _) override { play = !play; }
+	void keyDown(KeyEvent e) override {
+		switch(e.getCode()) {
+		case KeyEvent::KEY_SPACE:
+			play = !play;
+			break;
+		case KeyEvent::KEY_a:
+			mGlsl->uniform("mode", diffuse = !diffuse);
+			break;
+		case KeyEvent::KEY_r:
+			mCamera.lookAt(vec3(0), vec3(0, 0, -1));
+			break;
+		}
+	}
 	void updateCamera() {
 		auto quad = loader.next();
 		if (!quad.has_value()) {
@@ -187,7 +258,7 @@ public:
 
 		if (!mColorTex || !mDepthTex || !mConfidenceTex) return;
 
-		//gl::ScopedFaceCulling cull(true, GL_BACK);
+		gl::ScopedFaceCulling cull(true, GL_BACK);
 		gl::ScopedTextureBind tex0(mColorTex, 0);
 		gl::ScopedTextureBind tex1(mDepthTex, 1);
 		gl::ScopedTextureBind tex2(mConfidenceTex, 2);
@@ -200,7 +271,7 @@ public:
 		const double distance = 50.0;
 
 		gl::pointSize(3.0);
-		vert->draw();
+		gl::draw(mMesh);
 	}
 	void mouseUp(MouseEvent event) override {
 		mCamUi.mouseUp( event );
