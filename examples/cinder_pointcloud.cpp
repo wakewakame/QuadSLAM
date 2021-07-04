@@ -55,50 +55,48 @@ public:
 		mGlsl = gl::GlslProg::create( gl::GlslProg::Format()
 		.vertex(CI_GLSL(150,
 			in vec4 ciPosition;
-			in vec2 ciTexCoord0;
 			out VertexData {
 				vec2 uv;
-				float alpha;
-			} vVertexOut;
+				float confidence;
+			} vOut;
 
-			uniform sampler2D uDepthTex;
-			uniform sampler2D uConfidenceTex;
-			uniform vec2 depthUvScale;
 			uniform vec4 cameraParam;
+			uniform sampler2D depthTex;
+			uniform sampler2D confidenceTex;
+			uniform vec2 colorResolution;
+			uniform vec2 depthUvScale;
 			
 			void main(void) {
-				vVertexOut.uv = ciTexCoord0;
-				vec4 pos = ciPosition;
-				float depth = texture(uDepthTex, vVertexOut.uv * depthUvScale).r;
-				int confidence = int(texture(uConfidenceTex, vVertexOut.uv * depthUvScale).r * 255.0);
+				vec2 colorPos = ciPosition.xy * colorResolution;
+				vOut.uv = vec2(ciPosition.x, 1.0 - ciPosition.y);
+				float depth = texture(depthTex, vOut.uv * depthUvScale).r;
+				vOut.confidence = texture(confidenceTex, vOut.uv * depthUvScale).r * 255.0;
 
-				// Calculate the vertex's world coordinates.
-				float xrw = (pos.x - cameraParam.x) * depth / cameraParam.z;
-				float yrw = (pos.y - cameraParam.y) * depth / cameraParam.w;
-				vec4 xyzw = vec4(xrw, yrw, -depth, 1.0);
-
-				vVertexOut.alpha = (confidence == 0) ? 0.2 : 1.0;
-				vVertexOut.alpha = 1.0;
-				gl_Position	= xyzw;
+				gl_Position = vec4(
+					(colorPos.x - cameraParam.x) * depth / cameraParam.z,
+					(colorPos.y - cameraParam.y) * depth / cameraParam.w,
+					-depth,
+					1.0
+				);
 			}
 		 ))
 		.geometry(CI_GLSL(150,
 			layout (triangles) in;
 			layout (triangle_strip, max_vertices = 3) out;
 
-			uniform mat4 ciModelViewInverse;
-			uniform mat4 ciModelViewProjection;
-
 			in VertexData {
 				vec2 uv;
-				float alpha;
-			} vVertexIn[];
+				float confidence;
+			} vIn[];
 
 			out VertexData {
 				vec2 uv;
-				float alpha;
-				float diffuse;
-			} vVertexOut;
+				float confidence;
+				float light;
+			} vOut;
+
+			uniform mat4 ciModelViewInverse;
+			uniform mat4 ciModelViewProjection;
 
 			void main()
 			{
@@ -109,30 +107,30 @@ public:
 				vec3 v2 = p3 - p1;
 				float depth_avg = abs(p1.z + p2.z + p3.z) / 3.0;
 
-				// 勾配が急な面を描画しないようにする (depthが近いほど判定を厳しくする)
+				// カメラに対する勾配が急な面を描画しないようにする (depthが近いほど判定を厳しくする)
 				if (max(length(v1), length(v2)) > depth_avg * 0.1) return;
 
 				// 法線ベクトルとライティングの計算
 				vec3 normal = normalize(cross(v1, v2));
 				vec3 lightDirection = vec3(0.0, 0.0, 1.0);
 				lightDirection = normalize(ciModelViewInverse * vec4(lightDirection, 0.0)).xyz;
-				float diffuse = abs(dot(normal, lightDirection));
+				float light = abs(dot(normal, lightDirection));
 
-				vVertexOut.uv = vVertexIn[0].uv;
-				vVertexOut.alpha = vVertexIn[0].alpha;
-				vVertexOut.diffuse = diffuse;
+				vOut.uv = vIn[0].uv;
+				vOut.confidence = vIn[0].confidence;
+				vOut.light = light;
 				gl_Position = ciModelViewProjection * gl_in[0].gl_Position;
 				EmitVertex();
 
-				vVertexOut.uv = vVertexIn[1].uv;
-				vVertexOut.alpha = vVertexIn[1].alpha;
-				vVertexOut.diffuse = diffuse;
+				vOut.uv = vIn[1].uv;
+				vOut.confidence = vIn[1].confidence;
+				vOut.light = light;
 				gl_Position = ciModelViewProjection * gl_in[1].gl_Position;
 				EmitVertex();
 
-				vVertexOut.uv = vVertexIn[2].uv;
-				vVertexOut.alpha = vVertexIn[2].alpha;
-				vVertexOut.diffuse = diffuse;
+				vOut.uv = vIn[2].uv;
+				vOut.confidence = vIn[2].confidence;
+				vOut.light = light;
 				gl_Position = ciModelViewProjection * gl_in[2].gl_Position;
 				EmitVertex();
 
@@ -142,33 +140,28 @@ public:
 		.fragment(CI_GLSL(150,
 			in VertexData {
 				vec2 uv;
-				float alpha;
-				float diffuse;
-			} vVertexIn;
+				float confidence;
+				float light;
+			} vIn;
 			out vec4 oColor;
-			uniform sampler2D uColorTex;
-			uniform sampler2D uDepthTex;
-			uniform sampler2D uConfidenceTex;
+
+			uniform sampler2D colorTex;
 			uniform vec2 colorUvScale;
-			uniform vec2 depthUvScale;
 			uniform bool mode;
 
 			void main(void) {
-				float diffuse = vVertexIn.diffuse;
-
-				vec3 color = texture(uColorTex, vVertexIn.uv * colorUvScale).rgb;
-				if (mode) { color = vec3(0.98,0.176,0.463) * diffuse + vec3(0.494,0.235,0.812) * (1.0 - diffuse); }
-				oColor = vec4(color, vVertexIn.alpha);
+				vec3 color = texture(colorTex, vIn.uv * colorUvScale).rgb;
+				if (mode) { color = vec3(0.98,0.176,0.463) * vIn.light + vec3(0.494,0.235,0.812) * (1.0 - vIn.light); }
+				oColor = vec4(color, 1.0);
 			}
 		)));
 		
 		gl::enableDepthWrite();
 		gl::enableDepthRead();
 
-		mMesh = TriMesh(TriMesh::Format().positions(2).texCoords0(2));
+		mMesh = TriMesh(TriMesh::Format().positions(2));
 		for(uint32_t y = 0; y < 192; y++) { for(uint32_t x = 0; x < 256; x++) {
-			mMesh.appendTexCoord0(vec2((double)(x + 0) / 255.0, 1.0 - (double)(y + 0) / 191.0));
-			mMesh.appendPosition(vec2(1920.0 * (double)(x + 0) / 255.0, 1440.0 * (double)(y + 0) / 191.0));
+			mMesh.appendPosition(vec2((double)(x + 0) / 255.0, (double)(y + 0) / 191.0));
 		}}
 		for(uint32_t y = 0; y < 192 - 1; y++) { for(uint32_t x = 0; x < 256 - 1; x++) {
 			uint32_t p1 = (y + 0) * 256 + x;
@@ -220,30 +213,31 @@ public:
 		if (!mColorTex) {
 			mColorTex = gl::Texture2d::create(camera.color.cols, camera.color.rows, gl::Texture2d::Format().internalFormat(GL_SRGB8).dataType(GL_UNSIGNED_BYTE));
 			mColorTex->bind(0);
-			mGlsl->uniform("uColorTex", 0);
+			mGlsl->uniform("colorTex", 0);
 		}
 		if (!mDepthTex) {
 			mDepthTex = gl::Texture2d::create(camera.depth.cols, camera.depth.rows, gl::Texture2d::Format().internalFormat(GL_R32F).dataType(GL_FLOAT));
 			mDepthTex->bind(1);
-			mGlsl->uniform("uDepthTex", 1);
+			mGlsl->uniform("depthTex", 1);
 		}
 		if (!mConfidenceTex) {
 			mConfidenceTex = gl::Texture2d::create(camera.confidence.cols, camera.confidence.rows, gl::Texture2d::Format().internalFormat(GL_R8).dataType(GL_UNSIGNED_BYTE));
 			mConfidenceTex->bind(2);
-			mGlsl->uniform("uConfidenceTex", 2);
+			mGlsl->uniform("confidenceTex", 2);
 		}
 
 		mColorTex->update(camera.color.data, GL_BGR, GL_UNSIGNED_BYTE, 0, camera.color.cols, camera.color.rows);
 		mDepthTex->update(camera.depth.data, GL_RED, GL_FLOAT, 0, camera.depth.cols, camera.depth.rows);
 		mConfidenceTex->update(camera.confidence.data, GL_RED, GL_UNSIGNED_BYTE, 0, camera.confidence.cols, camera.confidence.rows);
 
+		mGlsl->uniform("colorResolution", glm::vec2((float)mColorTex->getActualWidth(), (float)mColorTex->getActualHeight()));
 		mGlsl->uniform("colorUvScale", glm::vec2(
-			(float)mColorTex->getActualWidth()  / (float)camera.color.cols,
-			(float)mColorTex->getActualHeight() / (float)camera.color.rows
+			(float)mColorTex->getActualWidth()  / (float)(camera.color.cols),
+			(float)mColorTex->getActualHeight() / (float)(camera.color.rows)
 		));
 		mGlsl->uniform("depthUvScale", glm::vec2(
-			(float)mDepthTex->getActualWidth()  / (float)camera.depth.cols,
-			(float)mDepthTex->getActualHeight() / (float)camera.depth.rows
+			(float)mDepthTex->getActualWidth()  / (float)(camera.depth.cols),
+			(float)mDepthTex->getActualHeight() / (float)(camera.depth.rows)
 		));
 		mGlsl->uniform("cameraParam", glm::vec4(
 			camera.ar.intrinsics[0][2],
