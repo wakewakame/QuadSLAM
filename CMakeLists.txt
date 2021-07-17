@@ -48,7 +48,7 @@ endif()
 string(REGEX REPLACE "([^;]+)" "${OPENCV_SOURCE_DIR}/modules/\\1/include" OPENCV_BUILD_LIST_INCLUDE "${OPENCV_BUILD_LIST}")
 ExternalProject_Add(
 	"${OPENCV_TARGET_NAME}"
-	GIT_REPOSITORY https://github.com/opencv/opencv
+	GIT_REPOSITORY https://github.com/opencv/opencv.git
 	GIT_TAG 4.5.2
 	PREFIX "${OPENCV_DIR}"
 	SOURCE_DIR "${OPENCV_SOURCE_DIR}"
@@ -61,6 +61,15 @@ ExternalProject_Add(
 		-DBUILD_ZLIB=ON
 )
 
+# sqlite_ormの追加
+string(TOLOWER "sqlite_orm" SQLITE_TARGET_NAME)
+FetchContent_Declare(
+	"${SQLITE_TARGET_NAME}"
+	GIT_REPOSITORY https://github.com/fnc12/sqlite_orm.git
+	GIT_TAG 1ee0a8653fe57ed4d4f69b5a65839b1861c41d32
+)
+FetchContent_MakeAvailable("${SQLITE_TARGET_NAME}")
+
 # nlohmann_jsonの追加
 string(TOLOWER "nlohmann_json" JSON_TARGET_NAME)
 set(JSON_DIR "${PROJECT_BINARY_DIR}/3rdparty/${JSON_TARGET_NAME}")
@@ -68,7 +77,7 @@ set(JSON_SOURCE_DIR "${JSON_DIR}/Source/${JSON_TARGET_NAME}")
 set(JSON_BINARY_DIR "${JSON_DIR}/Build/${JSON_TARGET_NAME}")
 ExternalProject_Add(
 	"${JSON_TARGET_NAME}"
-	GIT_REPOSITORY https://github.com/nlohmann/json
+	GIT_REPOSITORY https://github.com/nlohmann/json.git
 	GIT_TAG v3.9.1
 	PREFIX "${JSON_DIR}"
 	SOURCE_DIR "${JSON_SOURCE_DIR}"
@@ -82,7 +91,7 @@ ExternalProject_Add(
 string(TOLOWER "Cinder" CINDER_TARGET_NAME)
 FetchContent_Declare(
 	"${CINDER_TARGET_NAME}"
-	GIT_REPOSITORY https://github.com/cinder/Cinder
+	GIT_REPOSITORY https://github.com/cinder/Cinder.git
 	GIT_TAG 374c8834f2e03c476d1d913486dd6a5038dceba6
 )
 FetchContent_MakeAvailable("${CINDER_TARGET_NAME}")
@@ -122,6 +131,9 @@ function(qs_make_app)
 		"${OPENCV_BUILD_LIST_INCLUDE}"
 		"${OPENCV_BINARY_DIR}"
 	)
+
+	# sqlite_ormをライブラリとして追加
+	target_link_libraries("${ARG_APP_NAME}" "sqlite_orm::sqlite_orm")
 
 	# nlohmann_jsonをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${JSON_TARGET_NAME}")
