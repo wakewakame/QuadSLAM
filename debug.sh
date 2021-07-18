@@ -2,7 +2,7 @@
 set -e
 
 #TARGET="quadslam"
-TARGET="example_cinder_pointcloud2"
+TARGET="example_db_read"
 #TARGET="example_cinder_preview"
 ARG="$HOME/Downloads/QuadVideos/2021-06-14_08-06-54"
 ARG="$HOME/Downloads/QuadVideos/2021-06-14_09-00-38"
