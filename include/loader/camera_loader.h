@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "opencv2/opencv.hpp"
 #include "opencv2/videoio.hpp"
-#include "zlib.h"
+#include "qs_zlib/zlib.h"
 #include "nlohmann/json.hpp"
 #include "types.h"
 

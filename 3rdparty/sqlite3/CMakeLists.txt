@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.13)
+project(sqlite3)
+find_package(Threads REQUIRED)
+add_library(sqlite3 STATIC sqlite3.c)
+target_include_directories(sqlite3 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+install(TARGETS sqlite3 DESTINATION lib)
+install(FILES sqlite3.h DESTINATION include)
