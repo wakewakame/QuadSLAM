@@ -78,9 +78,10 @@ ExternalProject_Add(
 #)
 
 # sqlite3の追加
-string(TOLOWER "sqlite3" SQLITE_TARGET_NAME)
+string(TOLOWER "qs_sqlite3" SQLITE_TARGET_NAME)
 set(SQLITE_DIR ${PROJECT_BINARY_DIR}/3rdparty/${SQLITE_TARGET_NAME})
 set(SQLITE_INSTALL_DIR ${SQLITE_DIR}/Install/${SQLITE_TARGET_NAME})
+set(SQLITE_FILENAME ${CMAKE_STATIC_LIBRARY_PREFIX}sqlite3${CMAKE_STATIC_LIBRARY_SUFFIX})
 ExternalProject_Add(
 	"${SQLITE_TARGET_NAME}"
 	URL "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/sqlite3"
@@ -90,25 +91,24 @@ ExternalProject_Add(
 		-DCMAKE_INSTALL_PREFIX=${SQLITE_INSTALL_DIR}
 )
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-include(FindSQLite3)
-
 # sqlite_ormの追加
 string(TOLOWER "sqlite_orm" SQLITE_ORM_TARGET_NAME)
 set(SQLITE_ORM_DIR "${PROJECT_BINARY_DIR}/3rdparty/${SQLITE_ORM_TARGET_NAME}")
 set(SQLITE_ORM_SOURCE_DIR "${SQLITE_ORM_DIR}/Source/${SQLITE_ORM_TARGET_NAME}")
-set(SQLITE_ORM_BINARY_DIR "${SQLITE_ORM_DIR}/Build/${SQLITE_ORM_TARGET_NAME}")
 ExternalProject_Add(
 	"${SQLITE_ORM_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/fnc12/sqlite_orm.git
 	GIT_TAG 1ee0a8653fe57ed4d4f69b5a65839b1861c41d32
-	UPDATE_DISCONNECTED YES
+	UPDATE_DISCONNECTED NO
 	PREFIX "${SQLITE_ORM_DIR}"
 	SOURCE_DIR "${SQLITE_ORM_SOURCE_DIR}"
-	BINARY_DIR "${SQLITE_ORM_BINARY_DIR}"
+	BUILD_COMMAND ""
 	INSTALL_COMMAND ""
 	CMAKE_ARGS
-		-DCMAKE_MODULE_PATH:PATH="${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+		-DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake
+		-DQUADSLAM_SQLITE_INCLUDE=${SQLITE_INSTALL_DIR}/include
+		-DQUADSLAM_SQLITE_LIBRARY=${SQLITE_INSTALL_DIR}/lib/${SQLITE_FILENAME}
+		-DBUILD_EXAMPLES=OFF
 )
 add_dependencies("${SQLITE_ORM_TARGET_NAME}" "${SQLITE_TARGET_NAME}")
 
@@ -116,7 +116,6 @@ add_dependencies("${SQLITE_ORM_TARGET_NAME}" "${SQLITE_TARGET_NAME}")
 string(TOLOWER "nlohmann_json" JSON_TARGET_NAME)
 set(JSON_DIR "${PROJECT_BINARY_DIR}/3rdparty/${JSON_TARGET_NAME}")
 set(JSON_SOURCE_DIR "${JSON_DIR}/Source/${JSON_TARGET_NAME}")
-set(JSON_BINARY_DIR "${JSON_DIR}/Build/${JSON_TARGET_NAME}")
 ExternalProject_Add(
 	"${JSON_TARGET_NAME}"
 	GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -124,7 +123,6 @@ ExternalProject_Add(
 	UPDATE_DISCONNECTED YES
 	PREFIX "${JSON_DIR}"
 	SOURCE_DIR "${JSON_SOURCE_DIR}"
-	BINARY_DIR "${JSON_BINARY_DIR}"
 	BUILD_COMMAND ""
 	INSTALL_COMMAND ""
 	CMAKE_ARGS
@@ -196,10 +194,13 @@ macro(qs_make_app)
 	# 追加のインクルードディレクトリ
 	target_include_directories("${ARG_APP_NAME}" PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
+	# 追加のライブラリ
+	target_link_libraries("${ARG_APP_NAME}" Threads::Threads)
+
 	# zlibをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${ZLIB_TARGET_NAME}")
 	target_link_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_BINARY_DIR}")
-	target_include_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_INCLUDE_DIR}")
+	target_include_directories("${ARG_APP_NAME}" PRIVATE "${ZLIB_INCLUDE_DIR}")
 	qs_target_link_libraries_plain_name("${ARG_APP_NAME}" "zlibstatic")
 
 	# OpenCVをライブラリとして追加
@@ -221,9 +222,15 @@ macro(qs_make_app)
 	#target_link_libraries("${ARG_APP_NAME}" "sqlite3" "SQLiteCpp")
 	#target_include_directories("${ARG_APP_NAME}" PUBLIC "${SQLITE_SOURCE_DIR}/include")
 
+	# sqliteをライブラリとして追加
+	add_dependencies("${ARG_APP_NAME}" "${SQLITE_TARGET_NAME}")
+	target_link_directories("${ARG_APP_NAME}" PUBLIC "${SQLITE_INSTALL_DIR}/lib")
+	target_link_libraries("${ARG_APP_NAME}" "sqlite3")
+	target_include_directories("${ARG_APP_NAME}" PRIVATE "${SQLITE_INSTALL_DIR}/include")
+
 	# sqlite_ormをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${SQLITE_ORM_TARGET_NAME}")
-	#target_link_libraries("${ARG_APP_NAME}" "sqlite_orm::sqlite_orm")
+	target_include_directories("${ARG_APP_NAME}" PRIVATE "${SQLITE_ORM_SOURCE_DIR}/include")
 
 	# nlohmann_jsonをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${JSON_TARGET_NAME}")
