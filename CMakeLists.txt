@@ -79,8 +79,8 @@ ExternalProject_Add(
 
 # sqlite3の追加
 string(TOLOWER "qs_sqlite3" SQLITE_TARGET_NAME)
-set(SQLITE_DIR ${PROJECT_BINARY_DIR}/3rdparty/${SQLITE_TARGET_NAME})
-set(SQLITE_INSTALL_DIR ${SQLITE_DIR}/Install/${SQLITE_TARGET_NAME})
+set(SQLITE_DIR ${PROJECT_BINARY_DIR}/3rdparty/sqlite3)
+set(SQLITE_INSTALL_DIR ${SQLITE_DIR}/Install/sqlite3)
 set(SQLITE_FILENAME ${CMAKE_STATIC_LIBRARY_PREFIX}sqlite3${CMAKE_STATIC_LIBRARY_SUFFIX})
 ExternalProject_Add(
 	"${SQLITE_TARGET_NAME}"
@@ -108,7 +108,6 @@ ExternalProject_Add(
 		-DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake
 		-DQUADSLAM_SQLITE_INCLUDE=${SQLITE_INSTALL_DIR}/include
 		-DQUADSLAM_SQLITE_LIBRARY=${SQLITE_INSTALL_DIR}/lib/${SQLITE_FILENAME}
-		-DBUILD_EXAMPLES=OFF
 )
 add_dependencies("${SQLITE_ORM_TARGET_NAME}" "${SQLITE_TARGET_NAME}")
 
@@ -194,9 +193,6 @@ macro(qs_make_app)
 	# 追加のインクルードディレクトリ
 	target_include_directories("${ARG_APP_NAME}" PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
-	# 追加のライブラリ
-	target_link_libraries("${ARG_APP_NAME}" Threads::Threads)
-
 	# zlibをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${ZLIB_TARGET_NAME}")
 	target_link_directories("${ARG_APP_NAME}" PUBLIC "${ZLIB_BINARY_DIR}")
@@ -235,6 +231,9 @@ macro(qs_make_app)
 	# nlohmann_jsonをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${JSON_TARGET_NAME}")
 	target_include_directories("${ARG_APP_NAME}" PRIVATE "${JSON_SOURCE_DIR}/include")
+
+	# 追加のライブラリ
+	target_link_libraries("${ARG_APP_NAME}" Threads::Threads ${CMAKE_DL_LIBS})
 
 	# Windows用の設定
 	if(CMAKE_SYSTEM_NAME MATCHES "Windows")
