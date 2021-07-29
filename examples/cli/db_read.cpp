@@ -49,10 +49,23 @@ struct Imu {
 	double attitudeZ;
 };
 
-int main(int, char**) {
+int main(int argc, char* argv[]) {
 	using namespace sqlite_orm;
 
-	auto storage = make_storage("db.sqlite3",
+	if (2 != argc) {
+		std::cout
+			<< "example_gps version 0.0.1\n"
+			<< "\n"
+			<< "usage: example_gps input_path\n"
+			<< "  input_path: Directory containing QuadDump recording files"
+			<< "\n"
+			<< std::endl;
+		return 0;
+	}
+
+	std::string recDirPath = argv[1];
+
+	auto storage = make_storage(recDirPath + "/db.sqlite3",
 		make_table("description",
 			make_column("date", &Description::date),
 			make_column("color_width", &Description::colorWidth),
