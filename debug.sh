@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-#TARGET="quadslam"
-TARGET="example_db_read"
+TARGET="quadslam"
+#TARGET="example_db_read"
 #TARGET="example_pointcloud2"
 ARG="$HOME/Downloads/QuadVideos/2021-06-14_08-06-54"
 ARG="$HOME/Downloads/QuadVideos/2021-06-14_09-00-38"

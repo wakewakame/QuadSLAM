@@ -1,35 +1,16 @@
 #pragma once
-#include "opencv2/opencv.hpp"
 #include <stdint.h>
+#include <optional>
+#include "opencv2/opencv.hpp"
+#include "sqlite_orm/sqlite_orm.h"
 
 namespace qs {
-	struct IMU {
-		double timestamp = .0;
-		double gravity[3] = { .0, .0, .0 };
-		double userAccleration[3] = { .0, .0, .0 };
-		double attitude[3] = { .0, .0, .0 };
-
-		cv::Vec3d cvGravity();
-		cv::Vec3d cvUserAccleration();
-		cv::Vec3d cvAttitude();
-	};
-
-	struct GPS {
-		double timestamp = .0;
-		double latitude = .0, longitude = .0, altitude = .0;
-		double horizontalAccuracy = .0, verticalAccuracy = .0;
-
-		cv::Vec3d cvGPS();
-	};
-
-	struct AR {
-		float intrinsics[3][3]       = { { .0f, .0f, .0f }, { .0f, .0f, .0f }, { .0f, .0f, .0f } };
-		float projectionMatrix[4][4] = { { .0f, .0f, .0f, .0f }, { .0f, .0f, .0f, .0f }, { .0f, .0f, .0f, .0f }, { .0f, .0f, .0f, .0f } };
-		float viewMatrix[4][4]       = { { .0f, .0f, .0f, .0f }, { .0f, .0f, .0f, .0f }, { .0f, .0f, .0f, .0f }, { .0f, .0f, .0f, .0f } };
-
-		cv::Mat cvIntrinsics();
-		cv::Mat cvProjectionMatrix();
-		cv::Mat cvViewMatrix();
+	struct Description {
+		std::string date;
+		uint64_t colorWidth;
+		uint64_t colorHeight;
+		std::optional<uint64_t> depthWidth, depthHeight;
+		std::optional<uint64_t> confidenceWidth, confidenceHeight;
 	};
 
 	struct Camera {
@@ -41,20 +22,52 @@ namespace qs {
 			そのため、深いコピーを行うときにはCamera::clone()メソッドを使用する。
 		*/
 
-		double timestamp = .0;
+		double timestamp;
 		cv::Mat color;
 		cv::Mat depth;
 		cv::Mat confidence;
-		AR ar;
+		cv::Mat intrinsicsMatrix;
+		cv::Mat projectionMatrix;
+		cv::Mat viewMatrix;
 
 		Camera clone() const;
+	};
+
+	struct Gps {
+		uint64_t id;
+		double timestamp;
+		double latitude;
+		double longitude;
+		double altitude;
+		double horizontalAccuracy;
+		double verticalAccuracy;
+
+		cv::Vec3d cvGps() const;
+	};
+
+	struct Imu {
+		uint64_t id;
+		double timestamp;
+		double gravityX;
+		double gravityY;
+		double gravityZ;
+		double userAcclerationX;
+		double userAcclerationY;
+		double userAcclerationZ;
+		double attitudeX;
+		double attitudeY;
+		double attitudeZ;
+
+		cv::Vec3d cvGravity() const;
+		cv::Vec3d cvUserAccleration() const;
+		cv::Vec3d cvAttitude() const;
 	};
 
 	struct QuadFrame {
 		double timestamp = .0;
 		Camera camera;
-		IMU imu;
-		GPS gps;
+		Imu imu;
+		Gps gps;
 
 		QuadFrame clone() const;
 	};

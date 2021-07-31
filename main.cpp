@@ -18,6 +18,14 @@ int main(int argc, char* argv[]) {
 	loader.open(recDirPath);
 	if (!loader.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
 
+	size_t id = 0;
+	while(true) {
+		auto quad = loader.next();
+		if (!quad.has_value()) break;
+		std::cout << id++ << std::endl;
+	}
+
+	/*
 	while(true) {
 		auto quad = loader.next();
 		if (!quad.has_value()) break;
@@ -44,6 +52,7 @@ int main(int argc, char* argv[]) {
 
 		if ('q' == cv::waitKey(1)) break;
 	}
+	*/
 
 	return 0;
 }
