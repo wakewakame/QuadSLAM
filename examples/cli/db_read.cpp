@@ -15,7 +15,7 @@ struct Description {
 };
 
 struct Camera {
-	std::unique_ptr<uint64_t> id;
+	uint64_t id;
 	double timestamp;
 	std::unique_ptr<uint64_t> colorFrame;
 	std::unique_ptr<std::vector<char>> depthZlib;
@@ -26,7 +26,7 @@ struct Camera {
 };
 
 struct Gps {
-	std::unique_ptr<uint64_t> id;
+	uint64_t id;
 	double timestamp;
 	double latitude;
 	double longitude;
@@ -36,7 +36,7 @@ struct Gps {
 };
 
 struct Imu {
-	std::unique_ptr<uint64_t> id;
+	uint64_t id;
 	double timestamp;
 	double gravityX;
 	double gravityY;
@@ -49,23 +49,9 @@ struct Imu {
 	double attitudeZ;
 };
 
-int main(int argc, char* argv[]) {
+inline auto make_qs_storage(const std::string& filename) {
 	using namespace sqlite_orm;
-
-	if (2 != argc) {
-		std::cout
-			<< "example_gps version 0.0.1\n"
-			<< "\n"
-			<< "usage: example_gps input_path\n"
-			<< "  input_path: Directory containing QuadDump recording files"
-			<< "\n"
-			<< std::endl;
-		return 0;
-	}
-
-	std::string recDirPath = argv[1];
-
-	auto storage = make_storage(recDirPath + "/db.sqlite3",
+	return make_storage(filename,
 		make_table("description",
 			make_column("date", &Description::date),
 			make_column("color_width", &Description::colorWidth),
@@ -108,7 +94,27 @@ int main(int argc, char* argv[]) {
 			make_column("attitude_z", &Imu::attitudeZ)
 		)
 	);
-	//storage.sync_schema();
+}
+
+int main(int argc, char* argv[]) {
+	using namespace sqlite_orm;
+
+	if (2 != argc) {
+		std::cout
+			<< "example_db_read version 0.0.1\n"
+			<< "\n"
+			<< "usage: example_db_read input_path\n"
+			<< "  input_path: Directory containing QuadDump recording files"
+			<< "\n"
+			<< std::endl;
+		return 0;
+	}
+
+	std::string recDirPath = argv[1];
+
+	using QSStorage = decltype(make_qs_storage(std::declval<std::string>()));
+	QSStorage storage = make_qs_storage(recDirPath + "/db.sqlite3");
+	//storage->sync_schema();
 
 	for (auto& description : storage.iterate<Description>()) {
 		std::cout << storage.dump(description) << std::endl;
