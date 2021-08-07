@@ -1,5 +1,5 @@
 #include <iostream>
-#include "loader/gps_loader.h"
+#include "quad_loader.h"
 
 int main(int argc, char* argv[]) {
 	if (2 != argc) {
@@ -14,23 +14,18 @@ int main(int argc, char* argv[]) {
 	}
 
 	std::string recDirPath = argv[1];
-	qs::GPSLoader loader;
+	qs::QuadLoader loader;
 	loader.open(recDirPath);
 	if (!loader.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
+	qs::QSStorage& storage = *loader.getStorage();
 
-	while(true) {
-		auto gps = loader.next();
-		if (!gps.has_value()) break;
-		qs::GPS gps_ = gps.value();
-
+	for(auto gps : storage.iterate<qs::Gps>(sqlite_orm::order_by(&qs::Gps::timestamp).asc())) {
 		std::cout
 			<< "================================\n"
-			<< "timestamp                      : " << gps_.timestamp          << "\n"
-			<< "[latitude, longitude, altitude]: " << gps_.cvGPS()            << "\n"
-			<< "horizontalAccuracy             : " << gps_.horizontalAccuracy << "\n"
-			<< "verticalAccuracy               : " << gps_.verticalAccuracy   << std::endl;
-
-		if ('q' == cv::waitKey(1)) break;
+			<< "timestamp                      : " << gps.timestamp          << "\n"
+			<< "[latitude, longitude, altitude]: " << gps.cvGps()            << "\n"
+			<< "horizontalAccuracy             : " << gps.horizontalAccuracy << "\n"
+			<< "verticalAccuracy               : " << gps.verticalAccuracy   << std::endl;
 	}
 
 	return 0;

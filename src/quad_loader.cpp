@@ -1,4 +1,4 @@
-#include "loader/quad_loader.h"
+#include "quad_loader.h"
 #include <cassert>
 #include <cstring>
 
@@ -43,7 +43,7 @@ bool QuadLoader::isOpened() const {
 	return (storagePtr && video.isOpened());
 }
 
-std::optional<QuadFrame> QuadLoader::next() {
+std::optional<QuadFrame> QuadLoader::next(bool withImu, bool withGps) {
 	using namespace sqlite_orm;
 
 	// ファイルが開かれていなければ処理を終了
@@ -73,26 +73,36 @@ std::optional<QuadFrame> QuadLoader::next() {
 	Camera camera = std::move(cameraForOrm.toCamera(description, color));
 
 	// IMU
-	std::vector<Imu> imu = storage.get_all<Imu>(
-		where(
-			preTimestamp < c(&Imu::timestamp) and
-			c(&Imu::timestamp) <= camera.timestamp
-		)
-	);
+	std::vector<Imu> imu;
+	if (withImu) {
+		imu = std::move(storage.get_all<Imu>(
+			where(
+				preTimestamp < c(&Imu::timestamp) and
+				c(&Imu::timestamp) <= camera.timestamp
+			)
+		));
+	}
 
 	// GPS
-	std::vector<Gps> gps = storage.get_all<Gps>(
-		where(
-			preTimestamp < c(&Gps::timestamp) and
-			c(&Gps::timestamp) <= camera.timestamp
-		)
-	);
+	std::vector<Gps> gps;
+	if (withGps) {
+		gps = std::move(storage.get_all<Gps>(
+			where(
+				preTimestamp < c(&Gps::timestamp) and
+				c(&Gps::timestamp) <= camera.timestamp
+			)
+		));
+	}
 
 	preTimestamp = camera.timestamp;
 
 	return QuadFrame {
 		std::move(camera), imu, gps
 	};
+}
+
+const std::unique_ptr<QSStorage>& QuadLoader::getStorage() const {
+	return storagePtr;
 }
 
 void QuadLoader::seek(const uint64_t frameNumber) {

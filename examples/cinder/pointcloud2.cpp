@@ -6,12 +6,26 @@
 // メモ
 // "loader/quad_loader.h"を"cinder/gl/gl.h"よりも前にincludeすると
 // OpenCV内でdefineされるFARがcinderのコードを置換してエラーが発生してしまう
-#include "loader/quad_loader.h"
+#include "quad_loader.h"
 
 #include <list>
+#include <cstring>
 
 using namespace ci;
 using namespace ci::app;
+
+glm::mat3 toGlmMat3(const cv::Mat& m) {
+	assert(m.isContinuous());
+	glm::mat<3, 3, float, glm::defaultp> result;
+	std::memcpy(glm::value_ptr(result), m.ptr(0), 3 * 3 * sizeof(float));
+	return glm::transpose(result);
+}
+glm::mat4 toGlmMat4(const cv::Mat& m) {
+	assert(m.isContinuous());
+	glm::mat<4, 4, float, glm::defaultp> result;
+	std::memcpy(glm::value_ptr(result), m.ptr(0), 4 * 4 * sizeof(float));
+	return glm::transpose(result);
+}
 
 class PointCloud {
 public:
@@ -183,8 +197,12 @@ public:
 		cv::Mat color = camera.color, depth = camera.depth, confidence = camera.confidence;
 
 		// カメラの内部パラメータの値を取得
-		const float (&intrinsics)[3][3] = camera.ar.intrinsics;
-		vec4 cameraParam(intrinsics[0][2], intrinsics[1][2], intrinsics[0][0], intrinsics[1][1]);
+		vec4 cameraParam(
+			camera.intrinsicsMatrix.at<float>(0, 2),
+			camera.intrinsicsMatrix.at<float>(1, 2),
+			camera.intrinsicsMatrix.at<float>(0, 0),
+			camera.intrinsicsMatrix.at<float>(1, 1)
+		);
 
 		// 点群の省略度が設定されている場合はそれに合わせてデプスと信頼度を縮小
 		if (mDepthRough > 1) {
@@ -243,12 +261,7 @@ public:
 		mDepthTex     ->update(depth.data     , GL_RED, GL_FLOAT        , 0, depth.cols     , depth.rows     );
 		mConfidenceTex->update(confidence.data, GL_RED, GL_UNSIGNED_BYTE, 0, confidence.cols, confidence.rows);
 
-		entry.viewMatrix = mat4(
-			camera.ar.viewMatrix[0][0], camera.ar.viewMatrix[1][0], camera.ar.viewMatrix[2][0], camera.ar.viewMatrix[3][0],
-			camera.ar.viewMatrix[0][1], camera.ar.viewMatrix[1][1], camera.ar.viewMatrix[2][1], camera.ar.viewMatrix[3][1],
-			camera.ar.viewMatrix[0][2], camera.ar.viewMatrix[1][2], camera.ar.viewMatrix[2][2], camera.ar.viewMatrix[3][2],
-			camera.ar.viewMatrix[0][3], camera.ar.viewMatrix[1][3], camera.ar.viewMatrix[2][3], camera.ar.viewMatrix[3][3]
-		);
+		entry.viewMatrix = toGlmMat4(camera.viewMatrix);
 		if (!firstMatrix) { firstMatrix = entry.viewMatrix; }
 
 		textureIndex = (textureIndex + 1) % texturePool.size();
@@ -336,36 +349,23 @@ public:
 	mat3 intrinsics;
 	void updatePoints() {
 		// 次のフレームを取得
-		auto quad = mLoader.next();
+		auto quad = mLoader.next(false, false);
 		if (!quad.has_value()) { quit(); return; }
 		qs::QuadFrame& quadFrame = quad.value();
 		qs::Camera camera = quadFrame.camera;
-		if (camera.color.empty() || camera.depth.empty() || camera.confidence.empty()) { return; }
+		if (
+			camera.color.empty() || camera.depth.empty() || camera.confidence.empty() ||
+			camera.intrinsicsMatrix.empty() || camera.projectionMatrix.empty() || camera.viewMatrix.empty()
+		) { return; }
 
 		// 点群の更新
 		static int count = 0;
 		if (count == 0) mPoints.update(camera);
 		count = (count + 1) % 30;
 
-		viewMatrix = mat4(
-			camera.ar.viewMatrix[0][0], camera.ar.viewMatrix[1][0], camera.ar.viewMatrix[2][0], camera.ar.viewMatrix[3][0],
-			camera.ar.viewMatrix[0][1], camera.ar.viewMatrix[1][1], camera.ar.viewMatrix[2][1], camera.ar.viewMatrix[3][1],
-			camera.ar.viewMatrix[0][2], camera.ar.viewMatrix[1][2], camera.ar.viewMatrix[2][2], camera.ar.viewMatrix[3][2],
-			camera.ar.viewMatrix[0][3], camera.ar.viewMatrix[1][3], camera.ar.viewMatrix[2][3], camera.ar.viewMatrix[3][3]
-		);
-
-		projection = mat4(
-			camera.ar.projectionMatrix[0][0], camera.ar.projectionMatrix[1][0], camera.ar.projectionMatrix[2][0], camera.ar.projectionMatrix[3][0],
-			camera.ar.projectionMatrix[0][1], camera.ar.projectionMatrix[1][1], camera.ar.projectionMatrix[2][1], camera.ar.projectionMatrix[3][1],
-			camera.ar.projectionMatrix[0][2], camera.ar.projectionMatrix[1][2], camera.ar.projectionMatrix[2][2], camera.ar.projectionMatrix[3][2],
-			camera.ar.projectionMatrix[0][3], camera.ar.projectionMatrix[1][3], camera.ar.projectionMatrix[2][3], camera.ar.projectionMatrix[3][3]
-		);
-
-		intrinsics = mat3(
-			camera.ar.intrinsics[0][0], camera.ar.intrinsics[1][0], camera.ar.intrinsics[2][0],
-			camera.ar.intrinsics[0][1], camera.ar.intrinsics[1][1], camera.ar.intrinsics[2][1],
-			camera.ar.intrinsics[0][2], camera.ar.intrinsics[1][2], camera.ar.intrinsics[2][2]
-		);
+		viewMatrix = toGlmMat4(camera.viewMatrix);
+		projection = toGlmMat4(camera.projectionMatrix);
+		intrinsics = toGlmMat3(camera.intrinsicsMatrix);
 
 		static bool init = true; if (init) { mFirst = viewMatrix; init = false; }
 		trajectory.push_back(mFirst * glm::inverse(viewMatrix) * vec4(0, 0, 0, 1));

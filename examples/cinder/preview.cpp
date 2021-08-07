@@ -3,9 +3,11 @@
 #include "cinder/gl/gl.h"
 
 // メモ
-// "loader/quad_loader.h"を"cinder/gl/gl.h"よりも前にincludeすると
+// "quad_loader.h"を"cinder/gl/gl.h"よりも前にincludeすると
 // OpenCV内でdefineされるFARがcinderのコードを置換してエラーが発生してしまう
-#include "loader/quad_loader.h"
+#include "quad_loader.h"
+
+#include <chrono>
 
 using namespace ci;
 using namespace ci::app;
@@ -17,6 +19,7 @@ private:
 	gl::Texture2dRef mColorTex;
 	gl::Texture2dRef mDepthTex;
 	gl::Texture2dRef mConfidenceTex;
+	std::chrono::system_clock::time_point timeForFps;
 
 public:
 	void setup() override {
@@ -24,9 +27,9 @@ public:
 		std::vector<std::string> args = getCommandLineArgs();
 		if (2 != args.size()) {
 			std::cout
-				<< "QuadSLAM version 0.0.1\n"
+				<< "example_preview version 0.0.1\n"
 				<< "\n"
-				<< "usage: quadslam input_path\n"
+				<< "usage: example_preview input_path\n"
 				<< "  input_path: Directory containing QuadDump recording files"
 				<< "\n"
 				<< std::endl;
@@ -94,9 +97,11 @@ public:
 		
 		gl::enableDepthWrite();
 		gl::enableDepthRead();
+
+		timeForFps = std::chrono::system_clock::now();
 	}
 	void update() override {
-		auto quad = loader.next();
+		auto quad = loader.next(false, false);
 		if (!quad.has_value()) {
 			quit();
 			return;
@@ -136,6 +141,14 @@ public:
 			(float)mDepthTex->getActualWidth()  / (float)camera.depth.cols,
 			(float)mDepthTex->getActualHeight() / (float)camera.depth.rows
 		));
+
+
+		std::chrono::system_clock::time_point time = std::chrono::system_clock::now();
+		double fps = 1e6 / static_cast<double>(
+			std::chrono::duration_cast<std::chrono::microseconds>(time - timeForFps).count()
+		);
+		timeForFps = time;
+		std::cout << "fps: " << fps << std::endl;
 	}
 	void draw() override {
 		gl::clear( Color::gray( 0.1f ) );

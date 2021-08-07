@@ -1,9 +1,12 @@
 #!/bin/bash
-set -e
+set -eu
 
 TARGET="quadslam"
-#TARGET="example_db_read"
-#TARGET="example_pointcloud2"
+#TARGET="example_camera"
+TARGET="example_triangle"
+TARGET="example_preview"
+TARGET="example_pointcloud"
+TARGET="example_pointcloud2"
 ARG="$HOME/Downloads/QuadVideos/2021-06-14_08-06-54"
 #ARG="$HOME/Downloads/QuadVideos/2021-06-14_09-00-38"
 #ARG="$HOME/Downloads/QuadVideos/2021-06-14_09-01-22"

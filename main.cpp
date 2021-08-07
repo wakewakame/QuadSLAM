@@ -1,5 +1,5 @@
 #include <iostream>
-#include "loader/quad_loader.h"
+#include "quad_loader.h"
 
 int main(int argc, char* argv[]) {
 	if (2 != argc) {

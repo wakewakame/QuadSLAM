@@ -12,8 +12,9 @@ namespace qs {
 		void open(const std::string& recDirPath);
 		void close();
 		bool isOpened() const;
-		std::optional<QuadFrame> next();
+		std::optional<QuadFrame> next(bool withImu = true, bool withGps = true);
 		void seek(const uint64_t frameNumber);
+		const std::unique_ptr<QSStorage>& getStorage() const;
 
 	private:
 		Description description;

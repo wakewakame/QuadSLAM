@@ -1,5 +1,5 @@
 #include <iostream>
-#include "loader/imu_loader.h"
+#include "quad_loader.h"
 
 int main(int argc, char* argv[]) {
 	if (2 != argc) {
@@ -14,23 +14,18 @@ int main(int argc, char* argv[]) {
 	}
 
 	std::string recDirPath = argv[1];
-	qs::IMULoader loader;
+	qs::QuadLoader loader;
 	loader.open(recDirPath);
 	if (!loader.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
+	qs::QSStorage& storage = *loader.getStorage();
 
-	while(true) {
-		auto imu = loader.next();
-		if (!imu.has_value()) break;
-		qs::IMU imu_ = imu.value();
-
+	for(auto imu : storage.iterate<qs::Imu>(sqlite_orm::order_by(&qs::Imu::timestamp).asc())) {
 		std::cout
 			<< "================================\n"
-			<< "timestamp      : " << imu_.timestamp           << "\n"
-			<< "gravity        : " << imu_.cvGravity()         << "\n"
-			<< "userAccleration: " << imu_.cvUserAccleration() << "\n"
-			<< "attitude       : " << imu_.cvAttitude()        << std::endl;
-
-		if ('q' == cv::waitKey(1)) break;
+			<< "timestamp      : " << imu.timestamp           << "\n"
+			<< "gravity        : " << imu.cvGravity()         << "\n"
+			<< "userAccleration: " << imu.cvUserAccleration() << "\n"
+			<< "attitude       : " << imu.cvAttitude()        << std::endl;
 	}
 
 	return 0;

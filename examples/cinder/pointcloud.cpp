@@ -6,7 +6,7 @@
 // メモ
 // "loader/quad_loader.h"を"cinder/gl/gl.h"よりも前にincludeすると
 // OpenCV内でdefineされるFARがcinderのコードを置換してエラーが発生してしまう
-#include "loader/quad_loader.h"
+#include "quad_loader.h"
 
 using namespace ci;
 using namespace ci::app;
@@ -172,8 +172,12 @@ public:
 		cv::Mat color = camera.color, depth = camera.depth, confidence = camera.confidence;
 
 		// カメラの内部パラメータの値を取得
-		const float (&intrinsics)[3][3] = camera.ar.intrinsics;
-		vec4 cameraParam(intrinsics[0][2], intrinsics[1][2], intrinsics[0][0], intrinsics[1][1]);
+		vec4 cameraParam(
+			camera.intrinsicsMatrix.at<float>(0, 2),
+			camera.intrinsicsMatrix.at<float>(1, 2),
+			camera.intrinsicsMatrix.at<float>(0, 0),
+			camera.intrinsicsMatrix.at<float>(1, 1)
+		);
 
 		// 点群の省略度が設定されている場合はそれに合わせてデプスと信頼度を縮小
 		if (mDepthRough > 1) {
@@ -295,7 +299,7 @@ public:
 
 	void updatePoints() {
 		// 次のフレームを取得
-		auto quad = mLoader.next();
+		auto quad = mLoader.next(false, false);
 		if (!quad.has_value()) { quit(); return; }
 		qs::QuadFrame& quadFrame = quad.value();
 		qs::Camera camera = quadFrame.camera;
