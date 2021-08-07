@@ -58,25 +58,6 @@ ExternalProject_Add(
 		-DBUILD_LIST="${OPENCV_BUILD_LIST_STRING}"
 )
 
-# SQLiteCppの追加
-#string(TOLOWER "SQLiteCpp" SQLITE_TARGET_NAME)
-#set(SQLITE_DIR "${PROJECT_BINARY_DIR}/3rdparty/${SQLITE_TARGET_NAME}")
-#set(SQLITE_SOURCE_DIR "${SQLITE_DIR}/Source/${SQLITE_TARGET_NAME}")
-#set(SQLITE_BINARY_DIR "${SQLITE_DIR}/Build/${SQLITE_TARGET_NAME}")
-#ExternalProject_Add(
-#	"${SQLITE_TARGET_NAME}"
-#	GIT_REPOSITORY https://github.com/SRombauts/SQLiteCpp.git
-#	GIT_TAG 0c46d86e0d82031924c5d10bf9b23fa917ba037e
-#	GIT_CONFIG "core.autocrlf=input"
-#	UPDATE_DISCONNECTED YES
-#	PREFIX "${SQLITE_DIR}"
-#	SOURCE_DIR "${SQLITE_SOURCE_DIR}"
-#	BINARY_DIR "${SQLITE_BINARY_DIR}"
-#	INSTALL_COMMAND ""
-#	CMAKE_ARGS
-#		-DSQLITECPP_USE_STATIC_RUNTIME=ON
-#)
-
 # sqlite3の追加
 string(TOLOWER "qs_sqlite3" SQLITE_TARGET_NAME)
 set(SQLITE_DIR ${PROJECT_BINARY_DIR}/3rdparty/sqlite3)
@@ -110,23 +91,6 @@ ExternalProject_Add(
 		-DQUADSLAM_SQLITE_LIBRARY=${SQLITE_INSTALL_DIR}/lib/${SQLITE_FILENAME}
 )
 add_dependencies("${SQLITE_ORM_TARGET_NAME}" "${SQLITE_TARGET_NAME}")
-
-# nlohmann_jsonの追加
-string(TOLOWER "nlohmann_json" JSON_TARGET_NAME)
-set(JSON_DIR "${PROJECT_BINARY_DIR}/3rdparty/${JSON_TARGET_NAME}")
-set(JSON_SOURCE_DIR "${JSON_DIR}/Source/${JSON_TARGET_NAME}")
-ExternalProject_Add(
-	"${JSON_TARGET_NAME}"
-	GIT_REPOSITORY https://github.com/nlohmann/json.git
-	GIT_TAG v3.9.1
-	UPDATE_DISCONNECTED YES
-	PREFIX "${JSON_DIR}"
-	SOURCE_DIR "${JSON_SOURCE_DIR}"
-	BUILD_COMMAND ""
-	INSTALL_COMMAND ""
-	CMAKE_ARGS
-		-DJSON_BuildTests=OFF
-)
 
 # zlibの追加
 string(TOLOWER "qs_zlib" ZLIB_TARGET_NAME)
@@ -215,15 +179,6 @@ macro(qs_make_app)
 		"${OPENCV_BINARY_DIR}"
 	)
 
-	# SQLiteCppをライブラリとして追加
-	#add_dependencies("${ARG_APP_NAME}" "${SQLITE_TARGET_NAME}")
-	#target_link_directories("${ARG_APP_NAME}" PUBLIC
-	#	"${SQLITE_BINARY_DIR}"
-	#	"${SQLITE_BINARY_DIR}/sqlite3"
-	#)
-	#target_link_libraries("${ARG_APP_NAME}" "sqlite3" "SQLiteCpp")
-	#target_include_directories("${ARG_APP_NAME}" PUBLIC "${SQLITE_SOURCE_DIR}/include")
-
 	# sqliteをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${SQLITE_TARGET_NAME}")
 	target_link_directories("${ARG_APP_NAME}" PUBLIC "${SQLITE_INSTALL_DIR}/lib")
@@ -233,10 +188,6 @@ macro(qs_make_app)
 	# sqlite_ormをライブラリとして追加
 	add_dependencies("${ARG_APP_NAME}" "${SQLITE_ORM_TARGET_NAME}")
 	target_include_directories("${ARG_APP_NAME}" PRIVATE "${SQLITE_ORM_SOURCE_DIR}/include")
-
-	# nlohmann_jsonをライブラリとして追加
-	add_dependencies("${ARG_APP_NAME}" "${JSON_TARGET_NAME}")
-	target_include_directories("${ARG_APP_NAME}" PRIVATE "${JSON_SOURCE_DIR}/include")
 
 	# 追加のライブラリ
 	target_link_libraries("${ARG_APP_NAME}" Threads::Threads ${CMAKE_DL_LIBS})

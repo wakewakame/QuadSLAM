@@ -18,19 +18,11 @@ int main(int argc, char* argv[]) {
 	loader.open(recDirPath);
 	if (!loader.isOpened()) { std::cout << "failed to open forder" << std::endl; return 1; }
 
-	size_t id = 0;
 	while(true) {
 		auto quad = loader.next();
-		if (!quad.has_value()) break;
-		std::cout << id++ << std::endl;
-	}
-
-	/*
-	while(true) {
-		auto quad = loader.next();
-		if (!quad.has_value()) break;
-		qs::QuadFrame& quadFrame = quad.value();
-		qs::Camera camera = quadFrame.camera;
+		if (!quad) break;
+		qs::QuadFrame quadFrame = std::move(*quad);
+		qs::Camera& camera = quadFrame.camera;
 
 		camera.depth *= 0.1;
 		camera.confidence *= 255 / 2;
@@ -44,15 +36,17 @@ int main(int argc, char* argv[]) {
 		cv::imshow("depth"     , camera.depth     );
 		cv::imshow("confidence", camera.confidence);
 
-		std::cout
-			<< "================================\n"
-			<< "camera timestamp: " << quadFrame.camera.timestamp << "\n"
-			<< "imu    timestamp: " << quadFrame.imu.timestamp    << "\n"
-			<< "gps    timestamp: " << quadFrame.gps.timestamp    << std::endl;
+
+		std::cout << "================================\n";
+		std::cout << "imu timestamp:\n";
+		for(const auto& imu : quadFrame.imu) std::cout << "\t" << imu.timestamp << "\n";
+		std::cout << "gps timestamp:\n";
+		for(const auto& gps : quadFrame.gps) std::cout << "\t" << gps.timestamp << "\n";
+		std::cout << "camera timestamp: " << quadFrame.camera.timestamp << "\n";
+		std::cout << std::endl;
 
 		if ('q' == cv::waitKey(1)) break;
 	}
-	*/
 
 	return 0;
 }
