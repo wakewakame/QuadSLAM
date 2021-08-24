@@ -36,6 +36,9 @@ set(OPENCV_BUILD_LIST
 	"imgcodecs"
 	"highgui"
 	"videoio"
+	"calib3d"
+	"features2d"
+	"flann"
 )
 string(REGEX REPLACE ";" "," OPENCV_BUILD_LIST_STRING "${OPENCV_BUILD_LIST};")
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")

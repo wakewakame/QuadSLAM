@@ -2,17 +2,55 @@
 #include "cinder/app/RendererGl.h"
 #include "cinder/gl/gl.h"
 #include "cinder/CameraUi.h"
+#include "opencv2/opencv.hpp"
 #include <list>
 #include <random>
 
 using namespace ci;
 using namespace ci::app;
 
+class CameraTracker {
+private:
+	glm::mat4 a = glm::mat4(0.0);
+public:
+	void estimate(
+		const std::map<size_t, std::list<glm::vec2>>& points,
+		const glm::mat4& cameraMatrix,
+		const glm::ivec2& resolution
+	) {
+		vec2 wh = static_cast<vec2>(resolution);
+		std::vector<cv::Point2d> pointsA, pointsB;
+		for(const auto& p : points) {
+			if (p.second.size() < 2) continue;
+			auto itr = p.second.begin();
+			pointsA.emplace_back((*itr).x, (*itr).y); itr++;
+			pointsB.emplace_back((*itr).x, (*itr).y);
+		}
+		if (pointsA.size() < 15) return;
+		cv::Matx33d cvCameraMatrix {
+			cameraMatrix[0][0] * wh.x * 0.5, 0.0, wh.x * 0.5,
+			0.0, cameraMatrix[1][1] * wh.y * 0.5, wh.y * 0.5,
+			0.0, 0.0, 1.0
+		};
+		//std::cout << cvCameraMatrix << std::endl;
+		std::vector<cv::Point2d> normalizedPointsA(pointsA.size()), normalizedPointsB(pointsB.size());
+		cv::undistortPoints(pointsA, normalizedPointsA, cvCameraMatrix, cv::noArray());
+		cv::undistortPoints(pointsB, normalizedPointsB, cvCameraMatrix, cv::noArray());
+		cv::Matx33d E = cv::findEssentialMat(normalizedPointsA, normalizedPointsB, cv::Mat::eye(3, 3, CV_64F));
+		cv::Mat R, t;
+		cv::recoverPose(E, normalizedPointsA, normalizedPointsB, cv::Mat::eye(3, 3, CV_64F), R, t);
+		std::cout << R << std::endl;
+		std::cout << t << std::endl;
+		std::cout << "===" << std::endl;
+	}
+};
+
 class BasicApp : public App {
 public:
 	glm::ivec2 mouse;
 	std::vector<glm::vec3> points;
 	std::map<size_t, std::list<glm::vec2>> trajectory;
+	CameraTracker cameraTracker;
 	gl::VertBatchRef vert;
 	gl::GlslProgRef mGlsl;
 	CameraPersp	mCamera;
@@ -128,7 +166,7 @@ public:
 			vec2 p2(p.x, -p.y);
 			p2 = (p2 + vec2(1.0)) * vec2(getWindowSize() / 2);
 			trajectory[i].emplace_back(p2);
-			while(trajectory[i].size() > 128) trajectory[i].pop_front();
+			while(trajectory[i].size() > 16) trajectory[i].pop_front();
 		}
 
 		gl::clear(Color::gray(0.1f));
@@ -143,12 +181,14 @@ public:
 				auto vert2 = gl::VertBatch::create(GL_LINE_STRIP);
 				size_t count = 0;
 				for(auto itr = t.second.crbegin(); itr != t.second.crend(); itr++, count++) {
-					vert2->color(1.0, 0.0, 0.0, std::max(0.0, 1.0 - static_cast<double>(count) / 12.0));
+					vert2->color(1.0, 0.0, 0.0, std::max(0.0, 1.0 - static_cast<double>(count) / 16.0));
 					vert2->vertex(*itr);
 				}
 				vert2->draw();
 			}
 		}
+
+		cameraTracker.estimate(trajectory, projectionMatrix, getWindowSize());
 	}
 
 	void mouseMove(MouseEvent event) override { mouse = event.getPos(); }
