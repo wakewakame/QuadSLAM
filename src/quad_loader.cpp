@@ -8,16 +8,27 @@ QuadLoader::QuadLoader() {}
 
 QuadLoader::~QuadLoader() {}
 
-void QuadLoader::open(const std::string& recDirPath) {
+void QuadLoader::open(const std::filesystem::path& recDir) {
 	using namespace sqlite_orm;
 
+	std::string videoPathUTF8 = [recDir]() {
+		std::filesystem::path videoPath = recDir;
+		videoPath.append("camera.mp4");
+		return videoPath.u8string();
+	}();
+	std::string dbPathUTF8 = [recDir]() {
+		std::filesystem::path dbPath = recDir;
+		dbPath.append("db.sqlite3");
+		return dbPath.u8string();
+	}();
+
 	// カメラ
-	video.open(recDirPath + "/camera.mp4");
+	video.open(videoPathUTF8);
 	if (!video.isOpened()) { close(); return; }
 
 	// データベース
 	try {
-		storagePtr = std::make_unique<QSStorage>(makeQSStorage(recDirPath + "/db.sqlite3"));
+		storagePtr = std::make_unique<QSStorage>(makeQSStorage(dbPathUTF8));
 		QSStorage& storage = *storagePtr;
 		storage.sync_schema();
 		std::optional<Description> descriptionOpt;

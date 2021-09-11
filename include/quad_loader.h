@@ -1,5 +1,6 @@
 #pragma once
 #include <optional>
+#include <filesystem>
 #include "types.h"
 #include "opencv2/opencv.hpp"
 #include "opencv2/videoio.hpp"
@@ -9,7 +10,7 @@ namespace qs {
 	struct QuadLoader {
 		QuadLoader();
 		virtual ~QuadLoader();
-		void open(const std::string& recDirPath);
+		void open(const std::filesystem::path& recDir);
 		void close();
 		bool isOpened() const;
 		std::optional<QuadFrame> next(bool withImu = true, bool withGps = true);
