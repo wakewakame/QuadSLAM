@@ -56,6 +56,7 @@ ExternalProject_Add(
 	INSTALL_COMMAND ""
 	CMAKE_ARGS
 		-DBUILD_LIST="${OPENCV_BUILD_LIST_STRING}"
+		-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
 )
 
 # sqlite3の追加
@@ -70,6 +71,7 @@ ExternalProject_Add(
 	PREFIX "${SQLITE_DIR}"
 	CMAKE_ARGS
 		-DCMAKE_INSTALL_PREFIX=${SQLITE_INSTALL_DIR}
+		-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
 )
 
 # sqlite_ormの追加
@@ -89,6 +91,7 @@ ExternalProject_Add(
 		-DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake
 		-DQUADSLAM_SQLITE_INCLUDE=${SQLITE_INSTALL_DIR}/include
 		-DQUADSLAM_SQLITE_LIBRARY=${SQLITE_INSTALL_DIR}/lib/${SQLITE_FILENAME}
+		-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
 )
 add_dependencies("${SQLITE_ORM_TARGET_NAME}" "${SQLITE_TARGET_NAME}")
 
@@ -107,6 +110,8 @@ ExternalProject_Add(
 	SOURCE_DIR "${ZLIB_SOURCE_DIR}"
 	BINARY_DIR "${ZLIB_BINARY_DIR}"
 	INSTALL_COMMAND ""
+	CMAKE_ARGS
+		-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
 )
 
 # Cinderの追加
@@ -166,7 +171,7 @@ macro(qs_make_app)
 	elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
 		target_link_libraries("${ARG_APP_NAME}" "libz.a")
 	elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
-		target_link_libraries("${ARG_APP_NAME}" "zlibstatic")
+		target_link_libraries("${ARG_APP_NAME}" "zlibstatic$<$<CONFIG:Debug>:d>")
 	endif()
 
 	# OpenCVをライブラリとして追加
@@ -198,9 +203,6 @@ macro(qs_make_app)
 			set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 			set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
 		endif()
-
-		# CP932からUTF-8に変換するときに使う
-		target_link_libraries("${ARG_APP_NAME}" "Kernel32.lib")
 
 		# デバッグ実行時に依存dllを読めるように環境を設定
 		set_target_properties("${ARG_APP_NAME}" PROPERTIES VS_DEBUGGER_ENVIRONMENT

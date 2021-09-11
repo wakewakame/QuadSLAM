@@ -311,6 +311,9 @@ private:
 public:
 	void setup() override {
 		// QuadLoaderの初期化
+
+		// コマンドライン引数の取得
+		// (cinderはコマンドライン引数を自動的にUTF8に変換する)
 		std::vector<std::string> args = getCommandLineArgs();
 		if (2 != args.size()) {
 			std::cout
@@ -324,8 +327,8 @@ public:
 			return;
 		}
 
-		std::string recDirPath = args.at(1);
-		mLoader.open(recDirPath);
+		std::filesystem::path recDir = std::filesystem::u8path(args.at(1));
+		mLoader.open(recDir);
 		if (!mLoader.isOpened()) {
 			std::cout << "failed to open forder" << std::endl;
 			quit();

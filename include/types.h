@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <optional>
 #include "opencv2/opencv.hpp"
+#define SQLITE_ORM_OPTIONAL_SUPPORTED
 #include "sqlite_orm/sqlite_orm.h"
 #include "qs_zlib/zlib.h"
 

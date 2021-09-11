@@ -37,8 +37,8 @@ public:
 			return;
 		}
 
-		std::string recDirPath = args.at(1);
-		loader.open(recDirPath);
+		std::filesystem::path recDir = std::filesystem::u8path(args.at(1));
+		loader.open(recDir);
 		if (!loader.isOpened()) {
 			std::cout << "failed to open forder" << std::endl;
 			quit();
