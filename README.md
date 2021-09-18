@@ -63,5 +63,6 @@ cmake --build . --target ALL_BUILD --config Release
 
 ### Windowsの場合
 ```sh
+set PATH=%PATH%;<QuadSLAMフォルダへの絶対パス>\build\3rdparty\opencv\Build\opencv\bin\Release
 .\Release\quadslam.exe <QuadDumpで録画したディレクトリへのパス>
 ```
