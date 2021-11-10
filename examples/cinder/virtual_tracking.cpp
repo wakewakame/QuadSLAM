@@ -6,6 +6,10 @@
 #include <list>
 #include <random>
 
+#ifdef WIN32
+#include <Windows.h>
+#endif
+
 using namespace ci;
 using namespace ci::app;
 
@@ -57,6 +61,11 @@ public:
 	CameraUi mCamUi;
 
 	void setup() override {
+#ifdef WIN32
+		AllocConsole();
+		freopen("CONOUT$", "w", stdout);
+#endif
+
 		std::minstd_rand engine;
 		std::uniform_real_distribution dist(-1.0, 1.0);
 		auto rand = [&](){ return dist(engine); };
