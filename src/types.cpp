@@ -23,6 +23,9 @@ cv::Vec3d Imu::cvGravity() const {
 cv::Vec3d Imu::cvUserAccleration() const {
 	return cv::Vec3d(userAcclerationX, userAcclerationY, userAcclerationZ);
 }
+cv::Vec3d Imu::cvRotationRate() const {
+	return cv::Vec3d(rotationRateX, rotationRateY, rotationRateZ);
+}
 cv::Vec3d Imu::cvAttitude() const {
 	return cv::Vec3d(attitudeX, attitudeY, attitudeZ);
 }

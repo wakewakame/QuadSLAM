@@ -45,12 +45,16 @@ namespace qs {
 		double userAcclerationX;
 		double userAcclerationY;
 		double userAcclerationZ;
+		double rotationRateX;
+		double rotationRateY;
+		double rotationRateZ;
 		double attitudeX;
 		double attitudeY;
 		double attitudeZ;
 
 		cv::Vec3d cvGravity() const;
 		cv::Vec3d cvUserAccleration() const;
+		cv::Vec3d cvRotationRate() const;
 		cv::Vec3d cvAttitude() const;
 	};
 
@@ -127,6 +131,9 @@ namespace qs {
 				make_column("user_accleration_x", &Imu::userAcclerationX),
 				make_column("user_accleration_y", &Imu::userAcclerationY),
 				make_column("user_accleration_z", &Imu::userAcclerationZ),
+				make_column("rotation_rate_x", &Imu::rotationRateX),
+				make_column("rotation_rate_y", &Imu::rotationRateY),
+				make_column("rotation_rate_z", &Imu::rotationRateZ),
 				make_column("attitude_x", &Imu::attitudeX),
 				make_column("attitude_y", &Imu::attitudeY),
 				make_column("attitude_z", &Imu::attitudeZ)

@@ -25,6 +25,7 @@ int main(int argc, char* argv[]) {
 			<< "timestamp      : " << imu.timestamp           << "\n"
 			<< "gravity        : " << imu.cvGravity()         << "\n"
 			<< "userAccleration: " << imu.cvUserAccleration() << "\n"
+			<< "rotationRate   : " << imu.cvRotationRate()    << "\n"
 			<< "attitude       : " << imu.cvAttitude()        << std::endl;
 	}
 
